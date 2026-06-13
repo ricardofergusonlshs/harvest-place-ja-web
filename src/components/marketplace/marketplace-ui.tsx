@@ -23,13 +23,16 @@ import { formatJmd } from '@/lib/format';
 import type { Product } from '@/lib/types';
 
 const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=com.harvestplaceja.myapp&pli=1';
+
+// Keep hero assets local and direct. The fallback list prevents Vercel from showing
+// a blank hero area if one public image filename was not deployed or is cached.
+const FALLBACK_PRODUCT_IMAGE = '/logo.png';
 const HERO_IMAGE = '/elite/hero-produce-box.png';
+const HERO_IMAGE_FALLBACKS = ['/elite/weekly-box-banner.png', '/hero-produce.jpg', FALLBACK_PRODUCT_IMAGE];
 const FARM_STORY_IMAGE = '/elite/farmer-story.png';
-// Real wide HPJ box image used for the weekly box banner.
-const WEEKLY_BOX_IMAGE = '/elite/hero-produce-box.png';
+const WEEKLY_BOX_IMAGE = '/elite/weekly-box-banner.png';
 const APP_PHONE_IMAGE = '/elite/harvestplaceja-app-phone.png';
 const GOOGLE_PLAY_BADGE_IMAGE = '/elite/google-play-badge.png';
-const FALLBACK_PRODUCT_IMAGE = '/logo.png';
 
 type MarketMode = 'home' | 'shop';
 type ProductSort = 'featured' | 'price-low' | 'price-high' | 'stock';
@@ -54,7 +57,7 @@ const features: FeatureCard[] = [
     title: "This Week's Harvest",
     text: "See what's fresh and ready now.",
     href: '/shop',
-    label: 'Order Harvest',
+    label: 'Shop Harvest',
     image: HERO_IMAGE,
     icon: Leaf,
   },
@@ -75,10 +78,10 @@ const features: FeatureCard[] = [
     icon: Home,
   },
   {
-    title: 'Shop Now',
+    title: 'Show Shop',
     text: 'Browse available produce and request items.',
     href: '/shop',
-    label: 'Start Order',
+    label: 'Open Shop',
     image: '/categories/vegetables.jpg',
     icon: ShoppingBag,
   },
@@ -107,7 +110,7 @@ const trustItems = [
   },
   {
     title: 'Safe Ordering',
-    text: 'Secure orders and easy, hassle-free ordering.',
+    text: 'Secure requests and easy, hassle-free ordering.',
     icon: ShieldCheck,
   },
   {
@@ -132,7 +135,7 @@ function productAvailable(product: Product) {
 function stockLabel(product: Product) {
   if (product.ready_soon || product.product_status === 'ready_soon') return 'Ready soon';
   if (productAvailable(product)) return `${Number(product.stock_quantity || 0)} in stock`;
-  return 'Check availability';
+  return 'Request availability';
 }
 
 function productCategories(products: Product[]) {
@@ -178,6 +181,42 @@ function ProductImage({ product, className = 'object-contain p-3' }: { product: 
   );
 }
 
+function SafePublicImage({
+  src,
+  fallbackSrcs = [],
+  alt,
+  className,
+  sizes,
+  priority = false,
+}: {
+  src: string;
+  fallbackSrcs?: string[];
+  alt: string;
+  className: string;
+  sizes: string;
+  priority?: boolean;
+}) {
+  const candidates = useMemo(() => [src, ...fallbackSrcs, FALLBACK_PRODUCT_IMAGE], [src, fallbackSrcs]);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [src]);
+
+  return (
+    <Image
+      src={candidates[index] || FALLBACK_PRODUCT_IMAGE}
+      alt={alt}
+      fill
+      priority={priority}
+      sizes={sizes}
+      className={className}
+      unoptimized
+      onError={() => setIndex((current) => Math.min(current + 1, candidates.length - 1))}
+    />
+  );
+}
+
 function LiveHarvestProductCard({ product, compact = false }: { product: Product; compact?: boolean }) {
   return (
     <article className="group overflow-hidden rounded-[22px] border border-[#D8E5D4] bg-white shadow-[0_14px_35px_rgba(24,59,40,0.07)] transition hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(24,59,40,0.12)]">
@@ -200,7 +239,7 @@ function LiveHarvestProductCard({ product, compact = false }: { product: Product
           href={`/product/${product.id}`}
           className="mt-4 inline-flex rounded-lg bg-[#2D6741] px-4 py-2 text-xs font-black text-white transition hover:bg-[#183B28]"
         >
-          Order Item
+          Request Item
         </Link>
       </div>
     </article>
@@ -217,7 +256,7 @@ function FallbackProduceCard({ item }: { item: ProduceItem }) {
         <h3 className="text-base font-black text-[#183B28]">{item.name}</h3>
         <p className="mt-1 text-xs font-semibold text-[#5F6A62]">{item.text}</p>
         <Link href="/shop" className="mt-4 inline-flex rounded-lg bg-[#2D6741] px-4 py-2 text-xs font-black text-white transition hover:bg-[#183B28]">
-          Shop Now
+          Show Shop
         </Link>
       </div>
     </article>
@@ -340,7 +379,7 @@ function HomeLayout({ products, loading, notice }: { products: Product[]; loadin
                 </h1>
 
                 <p className="mt-5 max-w-[470px] text-sm font-semibold leading-7 text-[#5F6A62] sm:text-base sm:leading-8">
-                  Discover this week's harvest, build your produce box, and enjoy a premium farm experience with The Harvest Place Ja.
+                  Discover this week's harvest, request your produce box, and enjoy a premium farm experience with The Harvest Place Ja.
                 </p>
 
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -351,19 +390,19 @@ function HomeLayout({ products, loading, notice }: { products: Product[]; loadin
 
                   <PremiumButton href="/my-box" variant="secondary">
                     <Box className="h-4 w-4" />
-                    Build Your Box
+                    Request a Produce Box
                   </PremiumButton>
                 </div>
               </div>
 
               <div className="relative min-h-[260px] overflow-hidden sm:min-h-[340px] lg:-ml-16 lg:min-h-[430px] xl:-ml-24 xl:min-h-[470px]">
-                <Image
+                <SafePublicImage
                   src={HERO_IMAGE}
+                  fallbackSrcs={HERO_IMAGE_FALLBACKS}
                   alt="Fresh Jamaican produce in a harvest crate"
-                  fill
                   priority
                   sizes="(min-width: 1280px) 780px, (min-width: 1024px) 650px, 100vw"
-                  className="object-cover"
+                  className="object-cover object-center"
                 />
                 <div className="absolute inset-y-0 left-0 w-[70%] bg-gradient-to-r from-[#FFFEFC] via-[#FFFEFC]/78 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#FFFEFC]/30 via-[#FFFEFC]/8 to-transparent" />
@@ -389,10 +428,10 @@ function HomeLayout({ products, loading, notice }: { products: Product[]; loadin
                   className="group relative min-h-[150px] overflow-hidden rounded-[24px] border border-[#D8E5D4] bg-white shadow-[0_14px_36px_rgba(24,59,40,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_54px_rgba(24,59,40,0.11)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2D6741]"
                 >
                   <div className="absolute inset-y-0 left-0 w-[62%] overflow-hidden">
-                    <Image
+                    <SafePublicImage
                       src={feature.image}
+                      fallbackSrcs={HERO_IMAGE_FALLBACKS}
                       alt={`${feature.title} image`}
-                      fill
                       sizes="(min-width: 1280px) 260px, (min-width: 640px) 340px, 70vw"
                       className="object-cover transition duration-500 group-hover:scale-105"
                     />
@@ -455,10 +494,10 @@ function ShopLayout({ products, loading, notice }: { products: Product[]; loadin
             <div>
               <Eyebrow>This Week's Harvest</Eyebrow>
               <h1 className="mt-4 max-w-3xl font-serif text-4xl font-black leading-[0.98] tracking-[-0.055em] text-[#183B28] sm:text-5xl lg:text-6xl">
-                Order fresh produce from The Harvest Place Ja
+                Shop fresh produce from The Harvest Place Ja
               </h1>
               <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-[#5F6A62] sm:text-base">
-                Fresh produce available from The Harvest Place Ja. Order items, build your box, or open the Android app for the full experience.
+                Fresh produce available from The Harvest Place Ja. Request items, build your box, or open the Android app for the full experience.
               </p>
             </div>
 
@@ -564,7 +603,7 @@ function FreshFromFarmSection({ products, loading }: { products: Product[]; load
           <p className="mt-1 text-sm font-semibold text-[#5F6A62]">Hand-picked. Naturally grown. Always fresh.</p>
         </div>
         <Link href="/shop" className="inline-flex items-center gap-2 rounded-full border border-[#D8E5D4] bg-white px-5 py-3 text-sm font-black text-[#183B28] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#F4F9F2]">
-          Shop Now
+          Show Shop
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
@@ -706,7 +745,7 @@ function AppSection() {
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#DFA75A]/60 bg-white/70 px-6 py-3 text-sm font-black text-[#B5791E] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#FFF3D9]"
               >
                 <ShoppingBag className="h-4 w-4" />
-                Shop Now
+                Show Shop
               </Link>
             </div>
           </div>
