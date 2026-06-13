@@ -1,23 +1,28 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Banknote,
   BarChart3,
-  CheckCircle2,
   Clock,
   ImagePlus,
   Leaf,
   PackageCheck,
   RefreshCw,
   Save,
-  ShoppingBag,
+  ShieldCheck,
   Sprout,
   Store,
   Truck,
   UploadCloud,
   UserRound,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   Badge,
   Button,
@@ -27,8 +32,8 @@ import {
   SectionHeader,
   StatusChip,
   cn,
-} from '@/components/ui';
-import { useAuth } from '@/components/providers/auth-provider';
+} from "@/components/ui";
+import { useAuth } from "@/components/providers/auth-provider";
 import {
   createFarmerProduct,
   fetchCurrentFarmerProfile,
@@ -37,29 +42,56 @@ import {
   fetchFarmerProducts,
   saveFarmerProfile,
   uploadProductImage,
-} from '@/lib/services';
-import { formatDateTime, formatJmd } from '@/lib/format';
+} from "@/lib/services";
+import { formatDateTime, formatJmd } from "@/lib/format";
 import type {
   FarmerOrderSummary,
   FarmerPayout,
   FarmerProfile,
   Product,
-} from '@/lib/types';
+} from "@/lib/types";
 
-type Tab = 'dashboard' | 'profile' | 'products' | 'orders' | 'earnings';
+type Tab = "dashboard" | "profile" | "products" | "orders" | "earnings";
 
 const tabs: Array<{ value: Tab; label: string; icon: ReactNode }> = [
-  { value: 'dashboard', label: 'Dashboard', icon: <BarChart3 className="h-4 w-4" /> },
-  { value: 'profile', label: 'Profile', icon: <UserRound className="h-4 w-4" /> },
-  { value: 'products', label: 'Products', icon: <Sprout className="h-4 w-4" /> },
-  { value: 'orders', label: 'Orders', icon: <Truck className="h-4 w-4" /> },
-  { value: 'earnings', label: 'Earnings', icon: <Banknote className="h-4 w-4" /> },
+  {
+    value: "dashboard",
+    label: "Dashboard",
+    icon: <BarChart3 className="h-4 w-4" />,
+  },
+  {
+    value: "profile",
+    label: "Farm Profile",
+    icon: <UserRound className="h-4 w-4" />,
+  },
+  {
+    value: "products",
+    label: "Harvest Items",
+    icon: <Sprout className="h-4 w-4" />,
+  },
+  { value: "orders", label: "Requests", icon: <Truck className="h-4 w-4" /> },
+  {
+    value: "earnings",
+    label: "Earnings",
+    icon: <Banknote className="h-4 w-4" />,
+  },
 ];
+
+function makeFarmSlug(value: unknown) {
+  return (
+    String(value ?? "local-farm")
+      .toLowerCase()
+      .trim()
+      .replace(/&/g, "and")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "local-farm"
+  );
+}
 
 export default function FarmerPage() {
   const { user, loading: authLoading, refreshRoles } = useAuth();
 
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [profile, setProfile] = useState<FarmerProfile | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<FarmerOrderSummary[]>([]);
@@ -67,13 +99,13 @@ export default function FarmerPage() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const refresh = useCallback(async (showRefreshState = false) => {
     if (showRefreshState) setRefreshing(true);
     else setLoading(true);
 
-    setError('');
+    setError("");
 
     try {
       const farmer = await fetchCurrentFarmerProfile();
@@ -97,12 +129,12 @@ export default function FarmerPage() {
       setOrders(orderRows || []);
       setPayouts(payoutRows || []);
     } catch (err) {
-      console.error('Farmer portal failed to load:', err);
+      console.error("Farmer portal failed to load:", err);
       setProfile(null);
       setProducts([]);
       setOrders([]);
       setPayouts([]);
-      setError('Farmer portal data could not be loaded right now.');
+      setError("Farmer portal data could not be loaded right now.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -123,14 +155,14 @@ export default function FarmerPage() {
   const earnings = useMemo(() => {
     return orders.reduce(
       (sum, item) => sum + Number(item.farmer_earning_amount || 0),
-      0
+      0,
     );
   }, [orders]);
 
   const pendingProducts = useMemo(() => {
     return products.filter((product) => {
-      const status = String(product.approval_status || '').toLowerCase();
-      return status && status !== 'approved';
+      const status = String(product.approval_status || "").toLowerCase();
+      return status && status !== "approved";
     }).length;
   }, [products]);
 
@@ -138,7 +170,7 @@ export default function FarmerPage() {
     return (
       <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 sm:px-6 lg:px-10">
         <section className="mx-auto max-w-7xl">
-          <LoadingState label="Loading farmer market..." />
+          <LoadingState label="Loading farm discovery portal..." />
         </section>
       </main>
     );
@@ -150,7 +182,7 @@ export default function FarmerPage() {
         <section className="mx-auto max-w-5xl">
           <EmptyState
             title="Farmer sign-in required"
-            subtitle="Sign in to submit a farm profile, list products, and monitor orders or earnings."
+            subtitle="Sign in to create your farm profile, share harvest updates, list available produce, and manage safe platform requests."
             action={<Button href="/auth?redirect=/farmer">Sign in</Button>}
           />
         </section>
@@ -174,7 +206,7 @@ export default function FarmerPage() {
           <SectionHeader
             eyebrow="Farmer portal"
             title="Grow with The Harvest Place Ja"
-            subtitle="Submit your farmer profile, manage products, monitor farm orders, and view payout or earnings summaries."
+            subtitle="Showcase your farm, manage harvest items, receive safe platform requests, and view payout or earnings summaries."
             action={
               <Button
                 onClick={() => void refresh(true)}
@@ -182,7 +214,7 @@ export default function FarmerPage() {
                 disabled={refreshing}
               >
                 <RefreshCw className="h-4 w-4" />
-                {refreshing ? 'Refreshing...' : 'Refresh'}
+                {refreshing ? "Refreshing..." : "Refresh"}
               </Button>
             }
           />
@@ -194,6 +226,8 @@ export default function FarmerPage() {
           </div>
         ) : null}
 
+        <FarmPlatformSafetyNotice />
+
         <div className="mb-6 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map((item) => (
             <button
@@ -201,10 +235,10 @@ export default function FarmerPage() {
               type="button"
               onClick={() => setTab(item.value)}
               className={cn(
-                'inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition',
+                "inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-black transition",
                 tab === item.value
-                  ? 'border-[#2D6741] bg-[#2D6741] text-white shadow-[0_12px_28px_rgba(45,103,65,0.22)]'
-                  : 'border-[#D8E5D4] bg-white text-[#5F6A62] hover:border-[#2D6741]/40 hover:bg-[#F4F9F2] hover:text-[#183B28]'
+                  ? "border-[#2D6741] bg-[#2D6741] text-white shadow-[0_12px_28px_rgba(45,103,65,0.22)]"
+                  : "border-[#D8E5D4] bg-white text-[#5F6A62] hover:border-[#2D6741]/40 hover:bg-[#F4F9F2] hover:text-[#183B28]",
               )}
             >
               {item.icon}
@@ -224,7 +258,7 @@ export default function FarmerPage() {
           <>
             <ProfileStatusCard profile={profile} />
 
-            {tab === 'dashboard' ? (
+            {tab === "dashboard" ? (
               <Dashboard
                 products={products}
                 orders={orders}
@@ -234,7 +268,7 @@ export default function FarmerPage() {
               />
             ) : null}
 
-            {tab === 'profile' ? (
+            {tab === "profile" ? (
               <FarmerProfileForm
                 existing={profile}
                 refresh={async () => {
@@ -244,7 +278,7 @@ export default function FarmerPage() {
               />
             ) : null}
 
-            {tab === 'products' ? (
+            {tab === "products" ? (
               <FarmerProducts
                 profile={profile}
                 products={products}
@@ -252,15 +286,44 @@ export default function FarmerPage() {
               />
             ) : null}
 
-            {tab === 'orders' ? <FarmerOrders orders={orders} /> : null}
+            {tab === "orders" ? <FarmerOrders orders={orders} /> : null}
 
-            {tab === 'earnings' ? (
+            {tab === "earnings" ? (
               <FarmerEarnings earnings={earnings} payouts={payouts} />
             ) : null}
           </>
         )}
       </section>
     </main>
+  );
+}
+
+function FarmPlatformSafetyNotice() {
+  return (
+    <Card className="mb-6 rounded-[30px] border border-[#D8E5D4] bg-white/95 p-5 shadow-[0_18px_50px_rgba(24,59,40,0.07)]">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex gap-4">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#EAF5E7] text-[#2D6741]">
+            <ShieldCheck className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#DFA75A]">
+              Platform safety
+            </p>
+            <h2 className="mt-1 text-xl font-black tracking-[-0.03em] text-[#183B28]">
+              Customers discover your farm first, then request items safely.
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6A62]">
+              Your public farm profile should tell your story. Full produce
+              details appear inside your farm profile only, and all customer
+              messages, requests, and order discussions stay inside The Harvest
+              Place Ja.
+            </p>
+          </div>
+        </div>
+        <Badge tone="green">No direct contact shown</Badge>
+      </div>
+    </Card>
   );
 }
 
@@ -288,19 +351,31 @@ function FarmerHero({
         <div>
           <Badge tone="gold">
             <Leaf className="h-3 w-3" />
-            Farmer marketplace
+            Farmer discovery hub
           </Badge>
 
           <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[0.96] tracking-[-0.055em] sm:text-5xl">
-            {profile ? `Welcome, ${profile.farm_name}.` : 'Start selling fresh Jamaican produce.'}
+            {profile
+              ? `Welcome, ${profile.farm_name}.`
+              : "Showcase your Jamaican farm."}
           </h1>
 
           <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78 sm:text-base">
-            Create a farmer profile, submit products for approval, monitor farm order lines, and track estimated earnings.
+            Create a farmer profile, share harvest updates, submit available
+            produce for approval, and manage safe requests inside The Harvest
+            Place Ja.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button href="/shop">View marketplace</Button>
+            <Button
+              href={
+                profile
+                  ? `/farms/${makeFarmSlug(profile.farm_name)}`
+                  : "/farmer"
+              }
+            >
+              View public farm profile
+            </Button>
 
             <button
               type="button"
@@ -309,14 +384,14 @@ function FarmerHero({
               className="inline-flex items-center justify-center gap-2 rounded-full border border-white/16 bg-white/10 px-5 py-3 text-sm font-black text-white backdrop-blur transition hover:bg-white/18 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw className="h-4 w-4" />
-              {refreshing ? 'Refreshing...' : 'Refresh portal'}
+              {refreshing ? "Refreshing..." : "Refresh portal"}
             </button>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[460px]">
-          <HeroStat label="Products" value={products} />
-          <HeroStat label="Order lines" value={orders} />
+          <HeroStat label="Harvest items" value={products} />
+          <HeroStat label="Safe requests" value={orders} />
           <HeroStat label="Earnings" value={formatJmd(earnings)} wide />
         </div>
       </div>
@@ -334,7 +409,12 @@ function HeroStat({
   wide?: boolean;
 }) {
   return (
-    <div className={cn('rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur', wide && 'sm:col-span-1')}>
+    <div
+      className={cn(
+        "rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur",
+        wide && "sm:col-span-1",
+      )}
+    >
       <p className="text-xs font-black uppercase tracking-[0.18em] text-[#DFA75A]">
         {label}
       </p>
@@ -355,20 +435,23 @@ function ProfileStatusCard({ profile }: { profile: FarmerProfile }) {
           </h2>
 
           <p className="mt-1 text-sm font-bold text-[#5F6A62]">
-            {profile.parish || 'Parish not set'} • {profile.email || 'Email not set'}
+            {profile.parish || "Parish not set"} • Contact stays inside the
+            platform
           </p>
         </div>
 
         <StatusChip status={profile.verification_status} />
       </div>
 
-      {profile.verification_status !== 'approved' ? (
+      {profile.verification_status !== "approved" ? (
         <p className="mt-4 rounded-2xl border border-[#DFA75A]/35 bg-[#FFF3D9] p-3 text-sm font-bold leading-6 text-[#8B5D18]">
-          Your profile is saved. Product submissions may remain pending until admin verification is approved.
+          Your profile is saved. Product submissions may remain pending until
+          admin verification is approved.
         </p>
       ) : (
         <p className="mt-4 rounded-2xl border border-[#2D6741]/20 bg-[#EAF5E7] p-3 text-sm font-bold leading-6 text-[#2D6741]">
-          Your farmer profile is approved. You can submit and manage products in the marketplace.
+          Your farmer profile is approved. Customers can discover your farm and
+          request harvest items inside The Harvest Place Ja.
         </p>
       )}
     </Card>
@@ -390,11 +473,31 @@ function Dashboard({
 }) {
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-      <Metric icon={<Sprout className="h-5 w-5" />} label="Submitted products" value={products.length} />
-      <Metric icon={<Clock className="h-5 w-5" />} label="Pending products" value={pendingProducts} />
-      <Metric icon={<Truck className="h-5 w-5" />} label="Farm order lines" value={orders.length} />
-      <Metric icon={<Banknote className="h-5 w-5" />} label="Estimated earnings" value={formatJmd(earnings)} />
-      <Metric icon={<PackageCheck className="h-5 w-5" />} label="Payout records" value={payouts.length} />
+      <Metric
+        icon={<Sprout className="h-5 w-5" />}
+        label="Submitted harvest items"
+        value={products.length}
+      />
+      <Metric
+        icon={<Clock className="h-5 w-5" />}
+        label="Pending harvest items"
+        value={pendingProducts}
+      />
+      <Metric
+        icon={<Truck className="h-5 w-5" />}
+        label="Safe requests / order lines"
+        value={orders.length}
+      />
+      <Metric
+        icon={<Banknote className="h-5 w-5" />}
+        label="Estimated earnings"
+        value={formatJmd(earnings)}
+      />
+      <Metric
+        icon={<PackageCheck className="h-5 w-5" />}
+        label="Payout records"
+        value={payouts.length}
+      />
     </div>
   );
 }
@@ -430,27 +533,29 @@ function FarmerProfileForm({
   existing?: FarmerProfile;
   refresh: () => Promise<void>;
 }) {
-  const [farmName, setFarmName] = useState(existing?.farm_name || '');
-  const [farmerName, setFarmerName] = useState(existing?.farmer_name || '');
-  const [phone, setPhone] = useState(existing?.phone || '');
-  const [parish, setParish] = useState(existing?.parish || '');
-  const [address, setAddress] = useState(existing?.address || '');
-  const [bio, setBio] = useState(existing?.bio || '');
+  const [farmName, setFarmName] = useState(existing?.farm_name || "");
+  const [farmerName, setFarmerName] = useState(existing?.farmer_name || "");
+  const [phone, setPhone] = useState(existing?.phone || "");
+  const [parish, setParish] = useState(existing?.parish || "");
+  const [address, setAddress] = useState(existing?.address || "");
+  const [bio, setBio] = useState(existing?.bio || "");
   const [payoutMethod, setPayoutMethod] = useState(
-    existing?.payout_method || 'bank_transfer'
+    existing?.payout_method || "bank_transfer",
   );
-  const [payoutDetails, setPayoutDetails] = useState(existing?.payout_details || '');
+  const [payoutDetails, setPayoutDetails] = useState(
+    existing?.payout_details || "",
+  );
 
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   async function submit() {
-    setMessage('');
-    setError('');
+    setMessage("");
+    setError("");
 
     if (!farmName.trim() || !farmerName.trim()) {
-      setError('Please enter both farm name and farmer name.');
+      setError("Please enter both farm name and farmer name.");
       return;
     }
 
@@ -468,13 +573,13 @@ function FarmerProfileForm({
         payout_details: payoutDetails.trim(),
       });
 
-      setMessage('Farmer profile saved for admin review.');
+      setMessage("Farmer profile saved for admin review.");
       await refresh();
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'Farmer profile could not be saved right now.'
+          : "Farmer profile could not be saved right now.",
       );
     } finally {
       setSaving(false);
@@ -489,20 +594,33 @@ function FarmerProfileForm({
       </Badge>
 
       <h2 className="mt-4 text-2xl font-black tracking-[-0.035em] text-[#183B28]">
-        {existing ? 'Update farmer profile' : 'Create farmer profile'}
+        {existing ? "Update farmer profile" : "Create farmer profile"}
       </h2>
 
       <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-[#5F6A62]">
-        Add your farm details so the marketplace team can review and approve your farmer profile.
+        Add your farm story and private admin details. Customers will only see
+        your public farm profile and request items inside the platform.
       </p>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <Input label="Farm name" value={farmName} onChange={setFarmName} />
-        <Input label="Farmer name" value={farmerName} onChange={setFarmerName} />
-        <Input label="Phone" value={phone} onChange={setPhone} />
+        <Input
+          label="Farmer name"
+          value={farmerName}
+          onChange={setFarmerName}
+        />
+        <Input
+          label="Private phone (admin only)"
+          value={phone}
+          onChange={setPhone}
+        />
         <Input label="Parish" value={parish} onChange={setParish} />
         <Input label="Address" value={address} onChange={setAddress} />
-        <Input label="Payout method" value={payoutMethod} onChange={setPayoutMethod} />
+        <Input
+          label="Payout method"
+          value={payoutMethod}
+          onChange={setPayoutMethod}
+        />
 
         <Textarea label="Bio" value={bio} onChange={setBio} />
         <Textarea
@@ -526,7 +644,7 @@ function FarmerProfileForm({
 
       <Button onClick={submit} disabled={saving} className="mt-6">
         <Save className="h-4 w-4" />
-        {saving ? 'Saving...' : 'Save farmer profile'}
+        {saving ? "Saving..." : "Save farmer profile"}
       </Button>
     </Card>
   );
@@ -541,44 +659,48 @@ function FarmerProducts({
   products: Product[];
   refresh: () => Promise<void>;
 }) {
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [stock, setStock] = useState('0');
-  const [category, setCategory] = useState('Vegetables');
-  const [description, setDescription] = useState('');
-  const [unit, setUnit] = useState('each');
-  const [imageUrl, setImageUrl] = useState('');
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("0");
+  const [category, setCategory] = useState("Vegetables");
+  const [description, setDescription] = useState("");
+  const [unit, setUnit] = useState("each");
+  const [imageUrl, setImageUrl] = useState("");
   const [organic, setOrganic] = useState(false);
 
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
 
   async function upload(file: File | null) {
     if (!file) return;
 
-    setNotice('');
-    setError('');
+    setNotice("");
+    setError("");
     setUploading(true);
 
     try {
-      const url = await uploadProductImage(file, `farmers/${profile.id}`, false);
+      const url = await uploadProductImage(
+        file,
+        `farmers/${profile.id}`,
+        false,
+      );
       setImageUrl(url);
-      setNotice('Product image uploaded.');
+      setNotice("Harvest image uploaded.");
     } catch {
-      setError('Image upload failed. You can paste an image URL instead.');
+      setError("Image upload failed. You can paste an image URL instead.");
     } finally {
       setUploading(false);
     }
   }
 
   async function submit() {
-    setNotice('');
-    setError('');
+    setNotice("");
+    setError("");
 
     if (!name.trim() || !price.trim()) {
-      setError('Please enter a product name and price.');
+      setError("Please enter a harvest item name and price.");
       return;
     }
 
@@ -589,29 +711,29 @@ function FarmerProducts({
         name: name.trim(),
         price: Number(price),
         stock_quantity: Number(stock || 0),
-        category: category.trim() || 'Fresh Produce',
+        category: category.trim() || "Fresh Produce",
         description: description.trim(),
-        unit: unit.trim() || 'each',
+        unit: unit.trim() || "each",
         image_url: imageUrl.trim(),
         is_organic: organic,
       });
 
-      setName('');
-      setPrice('');
-      setStock('0');
-      setCategory('Vegetables');
-      setDescription('');
-      setUnit('each');
-      setImageUrl('');
+      setName("");
+      setPrice("");
+      setStock("0");
+      setCategory("Vegetables");
+      setDescription("");
+      setUnit("each");
+      setImageUrl("");
       setOrganic(false);
 
-      setNotice('Product submitted for approval.');
+      setNotice("Harvest item submitted for approval.");
       await refresh();
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'Product could not be submitted right now.'
+          : "Product could not be submitted right now.",
       );
     } finally {
       setSubmitting(false);
@@ -623,16 +745,30 @@ function FarmerProducts({
       <Card className="rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_18px_50px_rgba(24,59,40,0.07)]">
         <Badge tone="green">
           <ImagePlus className="h-3 w-3" />
-          Submit product
+          Submit harvest item
         </Badge>
 
         <div className="mt-5 grid gap-3">
-          <Input label="Name" value={name} onChange={setName} />
-          <Input label="Price" value={price} onChange={setPrice} type="number" />
-          <Input label="Stock" value={stock} onChange={setStock} type="number" />
+          <Input label="Harvest item name" value={name} onChange={setName} />
+          <Input
+            label="Price"
+            value={price}
+            onChange={setPrice}
+            type="number"
+          />
+          <Input
+            label="Stock"
+            value={stock}
+            onChange={setStock}
+            type="number"
+          />
           <Input label="Category" value={category} onChange={setCategory} />
           <Input label="Unit" value={unit} onChange={setUnit} />
-          <Input label="Description" value={description} onChange={setDescription} />
+          <Input
+            label="Description"
+            value={description}
+            onChange={setDescription}
+          />
           <Input label="Image URL" value={imageUrl} onChange={setImageUrl} />
 
           <label className="grid gap-2 text-sm font-black text-[#183B28]">
@@ -668,7 +804,11 @@ function FarmerProducts({
 
           <Button onClick={submit} disabled={uploading || submitting}>
             <UploadCloud className="h-4 w-4" />
-            {uploading ? 'Uploading...' : submitting ? 'Submitting...' : 'Submit for approval'}
+            {uploading
+              ? "Uploading..."
+              : submitting
+                ? "Submitting..."
+                : "Submit for approval"}
           </Button>
         </div>
       </Card>
@@ -684,8 +824,8 @@ function FarmerProducts({
                 <div>
                   <p className="font-black text-[#183B28]">{product.name}</p>
                   <p className="mt-1 text-sm font-bold text-[#5F6A62]">
-                    {formatJmd(product.price)} • Stock {product.stock_quantity} •{' '}
-                    {product.category}
+                    {formatJmd(product.price)} • Stock {product.stock_quantity}{" "}
+                    • {product.category}
                   </p>
                 </div>
 
@@ -698,8 +838,8 @@ function FarmerProducts({
           ))
         ) : (
           <EmptyState
-            title="No products submitted yet"
-            subtitle="Submit your first fresh product for marketplace approval."
+            title="No harvest items submitted yet"
+            subtitle="Submit your first farm harvest item for approval. Customers will only see it inside your farm profile."
           />
         )}
       </div>
@@ -711,8 +851,8 @@ function FarmerOrders({ orders }: { orders: FarmerOrderSummary[] }) {
   if (!orders.length) {
     return (
       <EmptyState
-        title="No farmer orders yet"
-        subtitle="Order lines connected to your farmer profile will appear here."
+        title="No safe requests or order lines yet"
+        subtitle="Safe produce requests and order lines connected to your farmer profile will appear here."
       />
     );
   }
@@ -727,12 +867,12 @@ function FarmerOrders({ orders }: { orders: FarmerOrderSummary[] }) {
           <p className="font-black text-[#183B28]">{order.product_name}</p>
 
           <p className="mt-1 text-sm font-bold text-[#5F6A62]">
-            Order #{String(order.order_id).slice(0, 6).toUpperCase()} • Qty{' '}
+            Request #{String(order.order_id).slice(0, 6).toUpperCase()} • Qty{" "}
             {order.quantity}
           </p>
 
           <p className="mt-3 text-lg font-black text-[#2D6741]">
-            Earned {formatJmd(order.farmer_earning_amount)}
+            Estimated earning {formatJmd(order.farmer_earning_amount)}
           </p>
         </Card>
       ))}
@@ -760,7 +900,7 @@ function FarmerEarnings({
         </p>
 
         <p className="mt-2 text-sm font-bold leading-6 text-[#5F6A62]">
-          Estimated from order item farmer earning amounts.
+          Estimated from approved request/order item farmer earning amounts.
         </p>
       </Card>
 
@@ -776,7 +916,7 @@ function FarmerEarnings({
               </p>
 
               <p className="mt-1 text-sm font-bold text-[#5F6A62]">
-                {payout.payout_method || 'Payout'} •{' '}
+                {payout.payout_method || "Payout"} •{" "}
                 {formatDateTime(payout.created_at)}
               </p>
 
@@ -788,7 +928,7 @@ function FarmerEarnings({
         ) : (
           <EmptyState
             title="No payouts yet"
-            subtitle="Payout records will appear when the marketplace creates payment summaries."
+            subtitle="Payout records will appear when platform payment summaries are created."
           />
         )}
       </div>
@@ -800,7 +940,7 @@ function Input({
   label,
   value,
   onChange,
-  type = 'text',
+  type = "text",
 }: {
   label: string;
   value: string;

@@ -28,6 +28,50 @@ import type { FarmNotification } from '@/lib/types';
 
 type BrowserPermission = NotificationPermission | 'unsupported';
 
+const offPlatformBlockedPhrases = [
+  'call me',
+  'text me',
+  'whatsapp',
+  'whats app',
+  'send your number',
+  'my number',
+  'outside the app',
+  'outside the website',
+  'contact me directly',
+  'message me directly',
+  'dm me',
+];
+
+function containsOffPlatformContact(value: unknown) {
+  const text = String(value ?? '').toLowerCase();
+  const phonePattern = /(\+?\d[\d\s().-]{6,}\d)/;
+  const emailPattern = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
+  const linkPattern = /(https?:\/\/|www\.|\.com|\.net|\.org|\.co|wa\.me|instagram|facebook|tiktok|telegram)/i;
+  const socialHandlePattern = /(^|\s)@[a-z0-9._-]{3,}/i;
+
+  return (
+    phonePattern.test(text) ||
+    emailPattern.test(text) ||
+    linkPattern.test(text) ||
+    socialHandlePattern.test(text) ||
+    offPlatformBlockedPhrases.some((phrase) => text.includes(phrase))
+  );
+}
+
+function safeNotificationMessage(value: unknown) {
+  const text = String(value ?? '').trim();
+
+  if (!text) {
+    return 'A new platform update is available in your Harvest Place Ja account.';
+  }
+
+  if (containsOffPlatformContact(text)) {
+    return 'This notification was hidden because it may contain off-platform contact details. For safety, all produce requests, messages, and order discussions must stay inside The Harvest Place Ja.';
+  }
+
+  return text;
+}
+
 export default function NotificationsPage() {
   const { user, loading: authLoading } = useAuth();
 
@@ -71,7 +115,7 @@ export default function NotificationsPage() {
         setItems(rows);
       } catch {
         if (!mounted) return;
-        setError('Notifications could not be loaded. Please refresh and try again.');
+        setError('Harvest alerts could not be loaded. Please refresh and try again.');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -92,9 +136,9 @@ export default function NotificationsPage() {
     try {
       const rows = await fetchFarmNotifications();
       setItems(rows);
-      setMessage('Notifications refreshed.');
+      setMessage('Harvest alerts refreshed.');
     } catch {
-      setError('Notifications could not be refreshed.');
+      setError('Harvest alerts could not be refreshed.');
     } finally {
       setRefreshing(false);
     }
@@ -111,7 +155,7 @@ export default function NotificationsPage() {
       setItems(rows);
       setMessage('All notifications marked as read.');
     } catch {
-      setError('Notifications could not be marked as read.');
+      setError('Harvest alerts could not be marked as read.');
     } finally {
       setRefreshing(false);
     }
@@ -132,11 +176,11 @@ export default function NotificationsPage() {
       setPermission(result);
 
       if (result === 'granted') {
-        setMessage('Browser alerts enabled successfully.');
+        setMessage('Harvest alerts enabled successfully.');
       } else if (result === 'denied') {
-        setError('Browser alerts are blocked. You can enable them from your browser settings.');
+        setError('Harvest alerts are blocked. You can enable them from your browser settings.');
       } else {
-        setMessage('Browser alerts were not enabled yet.');
+        setMessage('Harvest alerts were not enabled yet.');
       }
     } catch {
       setError('Browser alerts could not be enabled.');
@@ -147,7 +191,7 @@ export default function NotificationsPage() {
     return (
       <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 sm:px-6 lg:px-10">
         <section className="mx-auto max-w-5xl">
-          <LoadingState label="Loading fresh updates..." />
+          <LoadingState label="Loading harvest alerts..." />
         </section>
       </main>
     );
@@ -158,8 +202,8 @@ export default function NotificationsPage() {
       <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 sm:px-6 lg:px-10">
         <section className="mx-auto max-w-5xl">
           <EmptyState
-            title="Sign in to view notifications"
-            subtitle="Notifications are private to your account or email."
+            title="Sign in to view harvest alerts"
+            subtitle="Farm follows, harvest alerts, request replies, and platform messages are private to your account."
             action={
               <Button href="/auth?redirect=/notifications&next=/notifications">
                 Sign in
@@ -178,9 +222,9 @@ export default function NotificationsPage() {
 
         <div className="mt-8">
           <SectionHeader
-            eyebrow="Notifications"
-            title="Fresh updates"
-            subtitle="Order, stock, support, admin, and ready-soon notifications from your account."
+            eyebrow="Platform alerts"
+            title="Harvest alerts & platform messages"
+            subtitle="Farm updates, ready-soon harvest alerts, safe produce request replies, support messages, and account notices from The Harvest Place Ja."
             action={
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -230,8 +274,8 @@ export default function NotificationsPage() {
         {!items.length ? (
           <div className="mt-6">
             <EmptyState
-              title="No notifications"
-              subtitle="Ready-soon alerts, order updates, and support replies will appear here."
+              title="No harvest alerts yet"
+              subtitle="Farm updates, ready-soon harvest alerts, safe request replies, and support messages will appear here."
             />
           </div>
         ) : (
@@ -262,15 +306,15 @@ function NotificationsHero({
         <div>
           <Badge tone="gold">
             <Bell className="h-3 w-3" />
-            Market updates
+            Farm discovery alerts
           </Badge>
 
           <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[0.96] tracking-[-0.055em] sm:text-5xl">
-            Stay updated on your harvest orders.
+            Stay updated on farms you follow.
           </h1>
 
           <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78 sm:text-base">
-            Track order updates, ready-soon alerts, stock changes, support replies, and important market messages in one place.
+            Track harvest updates, ready-soon alerts, safe produce request replies, support messages, and important platform notices in one place.
           </p>
         </div>
 
@@ -324,15 +368,21 @@ function NotificationCard({ item }: { item: FarmNotification }) {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-black text-[#183B28]">
-                {item.title}
+                {String(item.title || 'Harvest Place Ja update')}
               </h2>
 
               {!isRead ? <Badge tone="gold">New</Badge> : null}
             </div>
 
             <p className="mt-2 text-sm font-semibold leading-6 text-[#5F6A62]">
-              {item.message}
+              {safeNotificationMessage(item.message)}
             </p>
+
+            {containsOffPlatformContact(item.message) ? (
+              <p className="mt-3 rounded-2xl border border-[#DFA75A]/35 bg-[#FFF3D9] p-3 text-xs font-black leading-5 text-[#8B5D18]">
+                Safety note: outside contact details are hidden. Keep all produce requests and messages inside the platform.
+              </p>
+            ) : null}
 
             <p className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-[#5F6A62]">
               <Clock className="h-3.5 w-3.5 text-[#2D6741]" />

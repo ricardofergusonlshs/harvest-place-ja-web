@@ -53,30 +53,30 @@ export default function MyBoxPage() {
     const cleanCoupon = coupon.trim().toUpperCase();
 
     if (!cleanCoupon) {
-      setMessage('Enter a coupon code to apply it during checkout.');
+      setMessage('Enter a code or short note to save it with your box.');
       return;
     }
 
     try {
       localStorage.setItem('harvest-place-ja-pending-coupon', cleanCoupon);
-      setMessage(`${cleanCoupon} saved. It will be validated securely at checkout.`);
+      setMessage(`${cleanCoupon} saved. It will be checked before final confirmation.`);
     } catch {
-      setMessage('Coupon could not be saved on this device. You can enter it again at checkout.');
+      setMessage('The code could not be saved on this device. You can enter it again later.');
     }
   }
 
   if (!lines.length) {
     return (
-      <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 text-[#1E2A21] sm:px-6 lg:px-10">
+      <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 text-[#183B28] sm:px-6 lg:px-10">
         <section className="mx-auto max-w-5xl">
           <EmptyState
             title="Your box is empty"
-            subtitle="Build your fresh market box with local produce, weekly staples, and ready-soon favorites."
+            subtitle="Start by shopping this week’s fresh harvest."
             action={
               <div className="flex flex-wrap justify-center gap-3">
-                <Button href="/shop">Shop Fresh Picks</Button>
-                <Button href="/weekly-box" variant="secondary">
-                  Build Weekly Box
+                <Button href="/shop">Shop This Week’s Harvest</Button>
+                <Button href="/" variant="secondary">
+                  Back to home
                 </Button>
               </div>
             }
@@ -87,22 +87,22 @@ export default function MyBoxPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_44%,#FFFEFC_100%)] text-[#1E2A21]">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_44%,#FFFEFC_100%)] text-[#183B28]">
       <section className="mx-auto max-w-[1450px] px-4 py-8 sm:px-6 lg:px-10">
         <BoxHero itemCount={itemCount} subtotal={subtotal} />
 
         <div className="mt-8">
           <SectionHeader
             eyebrow="My Box"
-            title="Review your fresh picks"
-            subtitle="Adjust quantities, check your box summary, and continue to secure checkout when everything looks right."
+            title="Review your selected produce"
+            subtitle="Review your selected produce before checkout."
             action={
               <div className="flex flex-wrap gap-3">
                 <Button href="/shop" variant="secondary">
-                  Continue shopping
+                  Shop more produce
                 </Button>
                 <Button href="/checkout">
-                  Secure checkout
+                  Continue to Checkout
                 </Button>
               </div>
             }
@@ -110,7 +110,7 @@ export default function MyBoxPage() {
         </div>
 
         {message ? (
-          <div className="mb-5 mt-5 rounded-3xl border border-farm-primary/15 bg-farm-primarySoft p-4 text-sm font-black text-farm-primary">
+          <div className="mb-5 mt-5 rounded-3xl border border-[#2D6741]/15 bg-[#EAF5E7] p-4 text-sm font-black text-[#2D6741]">
             {message}
           </div>
         ) : null}
@@ -128,11 +128,11 @@ export default function MyBoxPage() {
 
             <Card className="flex flex-col gap-4 rounded-[28px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.06)] sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="text-lg font-black text-farm-primaryDark">
-                  Need to start fresh?
+                <h3 className="text-lg font-black text-[#183B28]">
+                  Want to start over?
                 </h3>
-                <p className="mt-1 text-sm font-semibold text-farm-muted">
-                  Clear the box and build a new market order from scratch.
+                <p className="mt-1 text-sm font-semibold text-[#5F6A62]">
+                  Clear your current box and choose fresh items again from the shop.
                 </p>
               </div>
 
@@ -147,24 +147,24 @@ export default function MyBoxPage() {
             <Card className="sticky top-32 h-fit rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_24px_70px_rgba(24,59,40,0.10)]">
               <Badge tone="gold">
                 <ShieldCheck className="h-3 w-3" />
-                Secure order summary
+                Secure box summary
               </Badge>
 
-              <h2 className="mt-4 text-2xl font-black tracking-[-0.035em] text-farm-primaryDark">
-                Box summary
+              <h2 className="mt-4 text-2xl font-black tracking-[-0.035em] text-[#183B28]">
+                Your estimate
               </h2>
 
-              <div className="mt-5 grid gap-3 text-sm font-bold text-farm-muted">
+              <div className="mt-5 grid gap-3 text-sm font-bold text-[#5F6A62]">
                 <SummaryRow label="Items" value={itemCount} />
-                <SummaryRow label="Subtotal" value={formatJmd(subtotal)} />
+                <SummaryRow label="Produce subtotal" value={formatJmd(subtotal)} />
                 <SummaryRow label="Estimated delivery" value={formatJmd(estimatedDelivery)} />
 
-                <div className="flex justify-between text-farm-success">
+                <div className="flex justify-between text-[#2D6741]">
                   <span>Loyalty preview</span>
                   <span>{loyaltyPoints} pts</span>
                 </div>
 
-                <div className="flex justify-between border-t border-farm-border pt-4 text-xl font-black text-farm-primaryDark">
+                <div className="flex justify-between border-t border-[#D8E5D4] pt-4 text-xl font-black text-[#183B28]">
                   <span>Estimated total</span>
                   <span>{formatJmd(estimatedTotal)}</span>
                 </div>
@@ -172,7 +172,7 @@ export default function MyBoxPage() {
 
               <div className="mt-5 rounded-3xl border border-[#D8E5D4] bg-[#F4F9F2] p-3">
                 <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-[#183B28]">
-                  Coupon code
+                  Code or note
                 </label>
 
                 <div className="flex gap-2">
@@ -180,7 +180,7 @@ export default function MyBoxPage() {
                     value={coupon}
                     onChange={(event) => setCoupon(event.target.value)}
                     placeholder="e.g. FRESH10"
-                    className="min-w-0 flex-1 rounded-full border border-farm-border bg-white px-4 py-3 text-sm font-bold outline-none focus:border-farm-primary"
+                    className="min-w-0 flex-1 rounded-full border border-[#D8E5D4] bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#2D6741]"
                   />
 
                   <Button variant="secondary" onClick={saveCoupon}>
@@ -191,27 +191,27 @@ export default function MyBoxPage() {
 
               <Button href="/checkout" className="mt-5 w-full">
                 <ShoppingBag className="h-4 w-4" />
-                Checkout securely
+                Continue to Checkout
               </Button>
 
               <Button href="/shop" variant="ghost" className="mt-2 w-full">
-                Add more fresh picks
+                Shop more produce
               </Button>
             </Card>
 
             <Card className="rounded-[28px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.06)]">
-              <div className="grid gap-3 text-sm font-bold text-farm-muted">
+              <div className="grid gap-3 text-sm font-bold text-[#5F6A62]">
                 <TrustLine
                   icon={<ShieldCheck className="h-4 w-4" />}
-                  title="Stock checked at checkout"
+                  title="Your box is reviewed before final confirmation"
+                />
+                <TrustLine
+                  icon={<CheckCircle2 className="h-4 w-4" />}
+                  title="Availability is confirmed before pickup or delivery"
                 />
                 <TrustLine
                   icon={<Truck className="h-4 w-4" />}
-                  title="Pickup or islandwide delivery"
-                />
-                <TrustLine
-                  icon={<ShoppingBag className="h-4 w-4" />}
-                  title="Cart persists on this device"
+                  title="Pickup or delivery details are handled clearly at checkout"
                 />
               </div>
             </Card>
@@ -238,15 +238,15 @@ function BoxHero({
         <div>
           <Badge tone="gold">
             <Sparkles className="h-3 w-3" />
-            Fresh box review
+            Ready to review
           </Badge>
 
           <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[0.96] tracking-[-0.055em] sm:text-5xl">
-            Your market box is almost ready.
+            Your box is almost ready.
           </h1>
 
           <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78 sm:text-base">
-            Review your fresh picks, adjust quantities, save a coupon, and checkout securely when everything looks right.
+            Review your selected produce before checkout.
           </p>
         </div>
 
@@ -300,7 +300,7 @@ function CartItemCard({
     <Card className="grid gap-4 rounded-[28px] border border-[#D8E5D4] bg-white p-4 shadow-[0_18px_50px_rgba(24,59,40,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_rgba(24,59,40,0.10)] sm:grid-cols-[132px_1fr_auto] sm:items-center">
       <Link
         href={`/product/${productId}`}
-        className="relative h-36 overflow-hidden rounded-[1.35rem] bg-farm-primarySoft sm:h-30"
+        className="relative h-36 overflow-hidden rounded-[1.35rem] bg-[#EAF5E7] sm:h-32"
       >
         <Image
           src={src}
@@ -320,28 +320,35 @@ function CartItemCard({
 
         <Link
           href={`/product/${productId}`}
-          className="mt-2 block text-xl font-black text-farm-primaryDark transition hover:text-farm-primary"
+          className="mt-2 block text-xl font-black text-[#183B28] transition hover:text-[#2D6741]"
         >
           {line.product.name}
         </Link>
 
-        <p className="mt-1 text-sm font-bold text-farm-muted">
+        <p className="mt-1 text-sm font-bold text-[#5F6A62]">
           {formatJmd(unitPrice)} / {line.product.unit || 'each'}
-          {line.product.farm_name ? ` • ${line.product.farm_name}` : ''}
         </p>
 
-        <p className="mt-2 inline-flex rounded-full bg-[#EAF5E7] px-3 py-1 text-xs font-black text-farm-success">
+        <Link
+          href={`/product/${productId}`}
+          className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#EAF5E7] px-3 py-1 text-xs font-black text-[#2D6741] transition hover:bg-[#D8E5D4]"
+        >
+          View item
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+
+        <p className="mt-2 inline-flex rounded-full bg-[#FFF3D9] px-3 py-1 text-xs font-black text-[#8B5D18]">
           {line.product.stock_quantity ?? 'Available'} available
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 sm:flex-col sm:items-end">
-        <div className="flex items-center gap-2 rounded-full border border-farm-border bg-white p-1">
+        <div className="flex items-center gap-2 rounded-full border border-[#D8E5D4] bg-white p-1">
           <button
             type="button"
             aria-label={`Decrease ${line.product.name}`}
             onClick={decreaseQuantity}
-            className="rounded-full p-2 text-farm-primary transition hover:bg-farm-primarySoft"
+            className="rounded-full p-2 text-[#2D6741] transition hover:bg-[#EAF5E7]"
           >
             <Minus className="h-4 w-4" />
           </button>
@@ -354,13 +361,13 @@ function CartItemCard({
             type="button"
             aria-label={`Increase ${line.product.name}`}
             onClick={increaseQuantity}
-            className="rounded-full p-2 text-farm-primary transition hover:bg-farm-primarySoft"
+            className="rounded-full p-2 text-[#2D6741] transition hover:bg-[#EAF5E7]"
           >
             <Plus className="h-4 w-4" />
           </button>
         </div>
 
-        <p className="text-lg font-black text-farm-primaryDark">
+        <p className="text-lg font-black text-[#183B28]">
           {formatJmd(unitPrice * line.quantity)}
         </p>
 
@@ -368,7 +375,7 @@ function CartItemCard({
           type="button"
           onClick={() => onRemove(productId)}
           aria-label={`Remove ${line.product.name}`}
-          className="rounded-full p-2 text-farm-danger transition hover:bg-red-50"
+          className="rounded-full p-2 text-red-700 transition hover:bg-red-50"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -401,7 +408,7 @@ function TrustLine({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-farm-primarySoft text-farm-primary">
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-[#EAF5E7] text-[#2D6741]">
         {icon}
       </span>
       <span>{title}</span>

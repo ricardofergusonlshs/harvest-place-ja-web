@@ -1,16 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
+  Bell,
   CheckCircle2,
   Copy,
   Gift,
   Leaf,
   Share2,
+  ShieldCheck,
   Smartphone,
   Sparkles,
+  Sprout,
   Users,
 } from 'lucide-react';
 import { Badge, Button, Card, SectionHeader } from '@/components/ui';
@@ -28,7 +31,9 @@ export default function InvitePage() {
   }, []);
 
   const inviteText = useMemo(() => {
-    return `I found a fresh local farm market app you may like: ${APP_NAME}. Browse fresh produce, build your weekly box, and track farm orders here: ${origin}`;
+    const link = origin || APP_NAME;
+
+    return `I found ${APP_NAME}, a Jamaican farm discovery platform. You can explore local farms, follow harvest updates, and send safe produce requests inside the platform: ${link}`;
   }, [origin]);
 
   async function copyInvite() {
@@ -51,7 +56,7 @@ export default function InvitePage() {
         await navigator.share({
           title: APP_NAME,
           text: inviteText,
-          url: origin,
+          url: origin || undefined,
         });
 
         setMessage('Invite shared successfully.');
@@ -72,13 +77,13 @@ export default function InvitePage() {
         <SectionHeader
           eyebrow="Invite"
           title="Share The Harvest Place Ja"
-          subtitle="Invite customers, farmers, family, and friends to browse fresh local produce, build weekly boxes, and track farm orders."
+          subtitle="Invite customers, farmers, family, and friends to discover Jamaican farms, follow harvest updates, and send safe produce requests inside the platform."
         />
 
         <section className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
           <Card className="relative overflow-hidden rounded-[34px] border border-[#D8E5D4] bg-[#183B28] p-6 text-white shadow-[0_30px_90px_rgba(24,59,40,0.20)] sm:p-8">
-            <div className="absolute right-[-80px] top-[-80px] h-64 w-64 rounded-full bg-[#2D6741] opacity-60 blur-3xl" />
-            <div className="absolute bottom-[-90px] left-[-80px] h-64 w-64 rounded-full bg-[#DFA75A] opacity-25 blur-3xl" />
+            <div className="absolute right-[-80px] top-[-80px] h-64 w-64 rounded-full bg-[#2D6741] opacity-60 blur-3xl" aria-hidden="true" />
+            <div className="absolute bottom-[-90px] left-[-80px] h-64 w-64 rounded-full bg-[#DFA75A] opacity-25 blur-3xl" aria-hidden="true" />
 
             <div className="relative z-10">
               <div className="grid h-16 w-16 place-items-center rounded-3xl bg-[#FFF3D9] text-[#183B28] shadow-lg">
@@ -86,15 +91,15 @@ export default function InvitePage() {
               </div>
 
               <Badge tone="gold" className="mt-6">
-                Fresh market invite
+                Farm discovery invite
               </Badge>
 
               <h1 className="mt-5 max-w-2xl text-4xl font-black leading-[0.98] tracking-[-0.055em] sm:text-5xl lg:text-6xl">
-                Help more people find fresh local food.
+                Help more people discover Jamaican farms.
               </h1>
 
               <p className="mt-5 max-w-2xl text-sm font-semibold leading-7 text-white/78 sm:text-base">
-                Share the market with shoppers who want fresh produce, farmers who want more visibility, and families who want easier weekly shopping.
+                Share The Harvest Place Ja with people who want to explore farm profiles, see what is fresh, follow harvest updates, and request produce safely without public direct contact.
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
@@ -123,20 +128,20 @@ export default function InvitePage() {
           <div className="grid gap-4">
             <InviteBenefit
               icon={<Leaf className="h-5 w-5" />}
-              title="For shoppers"
-              text="Invite people to shop fresh vegetables, roots, herbs, fruits, and weekly boxes."
+              title="For customers"
+              text="Invite people to explore local farm profiles, see harvest stories, and request produce inside the platform."
             />
 
             <InviteBenefit
               icon={<Users className="h-5 w-5" />}
               title="For farmers"
-              text="Help local growers connect with customers and promote their fresh produce."
+              text="Help growers showcase their farm identity, parish, story, and current harvest updates."
             />
 
             <InviteBenefit
-              icon={<Gift className="h-5 w-5" />}
-              title="For families"
-              text="Make it easier for households to discover local food and reorder their favorites."
+              icon={<ShieldCheck className="h-5 w-5" />}
+              title="For safe requests"
+              text="Keep produce requests and messages inside The Harvest Place Ja instead of sharing private contact details."
             />
 
             <Card className="rounded-[28px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.07)]">
@@ -168,15 +173,15 @@ export default function InvitePage() {
           />
 
           <InfoCard
-            icon={<Sparkles className="h-5 w-5" />}
-            title="Share anywhere"
-            text="Send the link by WhatsApp, email, text message, social media, or customer groups."
+            icon={<Sprout className="h-5 w-5" />}
+            title="Explore farms first"
+            text="Customers discover farms before viewing that farm’s own available produce and harvest updates."
           />
 
           <InfoCard
             icon={<CheckCircle2 className="h-5 w-5" />}
-            title="Easy access"
-            text="Customers can browse, build their box, checkout, and track their orders from the web app."
+            title="Platform-only requests"
+            text="Produce requests, messages, and order discussions should stay inside The Harvest Place Ja."
           />
         </section>
 
@@ -186,7 +191,7 @@ export default function InvitePage() {
               <Badge tone="gold">Suggested message</Badge>
 
               <p className="mt-4 rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] p-4 text-sm font-semibold leading-7 text-[#5F6A62]">
-                {inviteText || `I found a fresh local farm market app you may like: ${APP_NAME}.`}
+                {inviteText || `I found ${APP_NAME}, a Jamaican farm discovery platform.`}
               </p>
             </div>
 
@@ -201,15 +206,25 @@ export default function InvitePage() {
               </button>
 
               <Link
-                href="/shop"
+                href="/farmer"
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2D6741] px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(45,103,65,0.22)] transition hover:bg-[#183B28]"
               >
-                View market
+                Explore farms
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
         </Card>
+
+        <section className="mt-8 rounded-[30px] border border-[#F0D6A7] bg-[#FFF3D9] p-6 text-center shadow-[0_18px_50px_rgba(24,59,40,0.07)]">
+          <Sparkles className="mx-auto h-7 w-7 text-[#8B5D18]" />
+          <h2 className="mt-3 text-2xl font-black text-[#183B28]">
+            Invite people to discover farms, not direct contacts
+          </h2>
+          <p className="mx-auto mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6A62]">
+            The Harvest Place Ja is designed so customers can explore farms, follow updates, and send safe produce requests inside the platform.
+          </p>
+        </section>
       </section>
     </main>
   );
@@ -220,7 +235,7 @@ function InviteBenefit({
   title,
   text,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   text: string;
 }) {
@@ -245,7 +260,7 @@ function InfoCard({
   title,
   text,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   text: string;
 }) {

@@ -23,6 +23,14 @@
   },
   "dynamicRoutes": [
     {
+      "page": "/farms/[farmSlug]",
+      "regex": "^/farms/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPfarmSlug": "nxtPfarmSlug"
+      },
+      "namedRegex": "^/farms/(?<nxtPfarmSlug>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/orders/[id]",
       "regex": "^/orders/([^/]+?)(?:/)?$",
       "routeKeys": {

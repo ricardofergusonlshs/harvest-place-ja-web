@@ -7,6 +7,7 @@
   "/auth/page": "app/auth/page.js",
   "/checkout/page": "app/checkout/page.js",
   "/farmer/page": "app/farmer/page.js",
+  "/farms/[farmSlug]/page": "app/farms/[farmSlug]/page.js",
   "/invite/page": "app/invite/page.js",
   "/my-box/page": "app/my-box/page.js",
   "/notifications/page": "app/notifications/page.js",

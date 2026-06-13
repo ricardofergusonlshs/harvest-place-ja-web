@@ -1,113 +1,171 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight,
+  AlertCircle,
+  CalendarDays,
   CheckCircle2,
   Clock,
+  CreditCard,
   PackageCheck,
-  RefreshCw,
-  ShieldCheck,
+  RefreshCcw,
   ShoppingBag,
   Truck,
 } from 'lucide-react';
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  LoadingState,
-  SectionHeader,
-  StatusChip,
-  cn,
-} from '@/components/ui';
 import { useAuth } from '@/components/providers/auth-provider';
 import { fetchOrders } from '@/lib/services';
-import { formatDateTime, formatJmd, shortIdLabel } from '@/lib/format';
 import type { FarmOrder } from '@/lib/types';
+
+type OrderItemLike = {
+  id?: string;
+  product_id?: string | null;
+  product_name?: string | null;
+  quantity?: number | string | null;
+  unit_price?: number | string | null;
+  line_total?: number | string | null;
+};
+
+type OrderWithItems = FarmOrder & {
+  order_items?: OrderItemLike[] | null;
+  created_at?: string | null;
+  id: string;
+  order_status?: string | null;
+  status?: string | null;
+  fulfillment_type?: string | null;
+  subtotal?: number | string | null;
+  delivery_fee?: number | string | null;
+  discount_amount?: number | string | null;
+  total?: number | string | null;
+  payment_status?: string | null;
+  payment_method?: string | null;
+  delivery_status?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  delivery_address?: string | null;
+  delivery_zone?: string | null;
+};
+
+function toNumber(value: unknown) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function formatJmdLocal(value: unknown) {
+  return new Intl.NumberFormat('en-JM', {
+    style: 'currency',
+    currency: 'JMD',
+    maximumFractionDigits: 0,
+  }).format(toNumber(value));
+}
+
+function formatDateLocal(value?: string | null) {
+  if (!value) return 'Date not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Date not set';
+  return new Intl.DateTimeFormat('en-JM', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function shortOrderId(id?: string | null) {
+  return String(id || '').slice(0, 8).toUpperCase();
+}
+
+function cleanLabel(value?: string | null, fallback = 'Pending') {
+  const text = String(value || '').trim();
+  if (!text) return fallback;
+  return text
+    .replace(/_/g, ' ')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function orderStatus(order: OrderWithItems) {
+  return order.delivery_status || order.order_status || order.status || 'pending';
+}
+
+function statusStyle(status?: string | null) {
+  const value = String(status || '').toLowerCase();
+
+  if (value.includes('deliver') || value.includes('complete') || value.includes('paid')) {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+
+  if (value.includes('ready') || value.includes('pack') || value.includes('confirm')) {
+    return 'border-[#D8E5D4] bg-[#EAF5E7] text-[#2D6741]';
+  }
+
+  if (value.includes('cancel') || value.includes('fail') || value.includes('refund')) {
+    return 'border-red-200 bg-red-50 text-red-700';
+  }
+
+  return 'border-[#F0D6A7] bg-[#FFF3D9] text-[#8A5A12]';
+}
+
+function orderTotal(order: OrderWithItems) {
+  const total = toNumber(order.total);
+  if (total > 0) return total;
+  return Math.max(
+    0,
+    toNumber(order.subtotal) + toNumber(order.delivery_fee) - toNumber(order.discount_amount),
+  );
+}
 
 export default function OrdersPage() {
   const { user, loading: authLoading } = useAuth();
-  const [orders, setOrders] = useState<FarmOrder[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  async function loadOrders(showRefreshState = false) {
-    if (!user) return;
+  const loadOrders = useCallback(async () => {
+    if (authLoading) return;
 
-    if (showRefreshState) setRefreshing(true);
-    else setLoading(true);
+    if (!user) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
 
-    setError('');
+    setLoading(true);
+    setMessage('');
 
     try {
-      const rows = await fetchOrders();
-      setOrders(rows);
-    } catch {
+      const rows = (await fetchOrders()) as OrderWithItems[];
+      setOrders(rows || []);
+    } catch (error) {
+      console.error('Failed to load orders', error);
       setOrders([]);
-      setError('Your orders could not be loaded. Please refresh and try again.');
+      setMessage('Orders could not load. Check your Supabase order policies and customer link.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }
+  }, [authLoading, user]);
 
   useEffect(() => {
-    let active = true;
+    void loadOrders();
+  }, [loadOrders]);
 
-    async function run() {
-      if (authLoading) return;
-
-      if (!user) {
-        if (active) setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError('');
-
-      try {
-        const rows = await fetchOrders();
-        if (active) setOrders(rows);
-      } catch {
-        if (active) {
-          setOrders([]);
-          setError('Your orders could not be loaded. Please refresh and try again.');
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    run();
-
-    return () => {
-      active = false;
-    };
-  }, [user, authLoading]);
-
-  const totals = useMemo(() => {
-    const deliveredWords = ['delivered', 'completed', 'complete', 'cancelled', 'canceled'];
-
-    const activeOrders = orders.filter((order) => {
-      const statusText = `${order.order_status || ''} ${order.status || ''} ${order.delivery_status || ''}`.toLowerCase();
-      return !deliveredWords.some((word) => statusText.includes(word));
-    });
-
-    return {
-      orders: orders.length,
-      spent: orders.reduce((sum, order) => sum + Number(order.total || 0), 0),
-      active: activeOrders.length,
-    };
+  const summary = useMemo(() => {
+    const active = orders.filter((order) => !String(orderStatus(order)).toLowerCase().includes('deliver')).length;
+    const delivered = orders.filter((order) => String(orderStatus(order)).toLowerCase().includes('deliver')).length;
+    const total = orders.reduce((sum, order) => sum + orderTotal(order), 0);
+    return { active, delivered, total };
   }, [orders]);
 
   if (authLoading || loading) {
     return (
-      <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 sm:px-6 lg:px-10">
+      <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 text-[#183B28] sm:px-6 lg:px-10">
         <section className="mx-auto max-w-[1350px]">
-          <LoadingState label="Loading your order tracker..." />
+          <div className="rounded-[32px] border border-[#D8E5D4] bg-white p-10 text-center shadow-[0_24px_80px_rgba(24,59,40,0.08)]">
+            <RefreshCcw className="mx-auto h-9 w-9 animate-spin text-[#2D6741]" />
+            <h1 className="mt-4 font-serif text-3xl font-black text-[#183B28]">Loading your orders...</h1>
+            <p className="mt-2 text-sm font-semibold text-[#5F6A62]">Checking Supabase for your farm orders.</p>
+          </div>
         </section>
       </main>
     );
@@ -115,281 +173,194 @@ export default function OrdersPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 sm:px-6 lg:px-10">
-        <section className="mx-auto max-w-5xl">
-          <EmptyState
-            title="Sign in to view orders"
-            subtitle="Your order history and receipts are protected by your account."
-            action={
-              <Button href="/auth?redirect=/orders&next=/orders">
+      <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 text-[#183B28] sm:px-6 lg:px-10">
+        <section className="mx-auto max-w-4xl">
+          <div className="rounded-[32px] border border-[#D8E5D4] bg-white p-10 text-center shadow-[0_24px_80px_rgba(24,59,40,0.08)]">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-[#EAF5E7] text-[#2D6741]">
+              <PackageCheck className="h-8 w-8" />
+            </div>
+            <h1 className="mt-5 font-serif text-4xl font-black tracking-[-0.04em] text-[#183B28]">Sign in to view orders</h1>
+            <p className="mx-auto mt-3 max-w-xl text-sm font-semibold leading-7 text-[#5F6A62]">
+              Use the same account you use in the Harvest Place Ja Android app to see your order history, pickup, delivery, and payment status.
+            </p>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/auth?redirect=/orders" className="rounded-full bg-[#2D6741] px-6 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(45,103,65,0.22)] transition hover:bg-[#183B28]">
                 Sign in
-              </Button>
-            }
-          />
+              </Link>
+              <Link href="/shop" className="rounded-full border border-[#D8E5D4] bg-white px-6 py-3 text-sm font-black text-[#183B28] transition hover:bg-[#F4F9F2]">
+                Shop fresh picks
+              </Link>
+            </div>
+          </div>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_44%,#FFFEFC_100%)] text-[#1E2A21]">
-      <section className="mx-auto max-w-[1350px] px-4 py-8 sm:px-6 lg:px-10">
-        <OrdersHero
-          totalOrders={totals.orders}
-          activeOrders={totals.active}
-          totalSpent={totals.spent}
-        />
+    <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-8 text-[#183B28] sm:px-6 lg:px-10">
+      <section className="mx-auto max-w-[1350px]">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <span className="inline-flex rounded-full bg-[#FFF3D9] px-4 py-2 text-[11px] font-black uppercase tracking-[0.22em] text-[#8A5A12]">
+              Order tracker
+            </span>
+            <h1 className="mt-4 font-serif text-4xl font-black tracking-[-0.05em] text-[#183B28] sm:text-5xl lg:text-6xl">
+              Your farm orders
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[#5F6A62] sm:text-base">
+              Orders placed from the Android app and website will appear here when they are connected to the same Supabase customer account.
+            </p>
+          </div>
 
-        <div className="mt-8">
-          <SectionHeader
-            eyebrow="Order tracker"
-            title="Your farm orders"
-            subtitle="Track payment, fulfillment, pickup or delivery, and item details in one polished dashboard."
-            action={
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => loadOrders(true)}
-                  disabled={refreshing}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  {refreshing ? 'Refreshing...' : 'Refresh'}
-                </Button>
-
-                <Button href="/shop">
-                  Shop fresh picks
-                </Button>
-              </div>
-            }
-          />
+          <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
+            <button
+              type="button"
+              onClick={() => void loadOrders()}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D8E5D4] bg-white px-5 py-3 text-sm font-black text-[#183B28] shadow-sm transition hover:bg-[#F4F9F2]"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Refresh
+            </button>
+            <Link href="/shop" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2D6741] px-5 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(45,103,65,0.22)] transition hover:bg-[#183B28]">
+              <ShoppingBag className="h-4 w-4" />
+              Shop fresh picks
+            </Link>
+          </div>
         </div>
 
-        {error ? (
-          <div className="mt-5 rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-black text-red-700">
-            {error}
+        {message ? (
+          <div className="mt-6 flex gap-3 rounded-3xl border border-[#F0D6A7] bg-[#FFF3D9] p-4 text-sm font-bold text-[#8A5A12]">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+            <p>{message}</p>
           </div>
         ) : null}
 
+        <div className="mt-7 grid gap-4 md:grid-cols-3">
+          <SummaryCard icon={PackageCheck} label="Total orders" value={orders.length} />
+          <SummaryCard icon={Clock} label="Active orders" value={summary.active} />
+          <SummaryCard icon={CreditCard} label="Order value" value={formatJmdLocal(summary.total)} />
+        </div>
+
         {!orders.length ? (
-          <div className="mt-6">
-            <EmptyState
-              title="No orders yet"
-              subtitle="When you place your first farm order, it will appear here with premium tracking."
-              action={
-                <div className="flex flex-wrap justify-center gap-3">
-                  <Button href="/shop">Shop fresh picks</Button>
-                  <Button href="/weekly-box" variant="secondary">
-                    Build weekly box
-                  </Button>
-                </div>
-              }
-            />
+          <div className="mt-7 rounded-[34px] border border-[#D8E5D4] bg-white p-10 text-center shadow-[0_24px_80px_rgba(24,59,40,0.08)] sm:p-14">
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-[26px] bg-[#EAF5E7] text-[#2D6741] shadow-[0_18px_45px_rgba(45,103,65,0.12)]">
+              <PackageCheck className="h-10 w-10" />
+            </div>
+            <span className="mt-7 inline-flex rounded-full bg-[#EAF5E7] px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#2D6741]">
+              Fresh start
+            </span>
+            <h2 className="mt-4 font-serif text-3xl font-black tracking-[-0.04em] text-[#183B28]">No orders yet</h2>
+            <p className="mx-auto mt-3 max-w-lg text-sm font-semibold leading-7 text-[#5F6A62]">
+              If you already ordered in the Android app, make sure you are signed in on the website with the same email used in the app.
+            </p>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/shop" className="rounded-full bg-[#2D6741] px-6 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(45,103,65,0.22)] transition hover:bg-[#183B28]">
+                Shop fresh picks
+              </Link>
+              <Link href="/my-box" className="rounded-full border border-[#D8E5D4] bg-white px-6 py-3 text-sm font-black text-[#183B28] transition hover:bg-[#F4F9F2]">
+                Build weekly box
+              </Link>
+            </div>
           </div>
         ) : (
-          <>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <MetricCard
-                icon={<ShoppingBag className="h-5 w-5" />}
-                label="Total orders"
-                value={String(totals.orders)}
-              />
-
-              <MetricCard
-                icon={<Clock className="h-5 w-5" />}
-                label="Active orders"
-                value={String(totals.active)}
-              />
-
-              <MetricCard
-                icon={<ShieldCheck className="h-5 w-5" />}
-                label="Lifetime spend"
-                value={formatJmd(totals.spent)}
-              />
-            </div>
-
-            <div className="mt-6 grid gap-5">
-              {orders.map((order) => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-            </div>
-          </>
+          <div className="mt-7 grid gap-5">
+            {orders.map((order) => (
+              <OrderCard key={order.id} order={order} />
+            ))}
+          </div>
         )}
       </section>
     </main>
   );
 }
 
-function OrdersHero({
-  totalOrders,
-  activeOrders,
-  totalSpent,
-}: {
-  totalOrders: number;
-  activeOrders: number;
-  totalSpent: number;
-}) {
+function SummaryCard({ icon: Icon, label, value }: { icon: typeof PackageCheck; label: string; value: string | number }) {
   return (
-    <section className="relative overflow-hidden rounded-[34px] bg-[#183B28] px-6 py-7 text-white shadow-[0_30px_90px_rgba(24,59,40,0.20)] sm:px-8 lg:px-10">
-      <div className="absolute right-[-100px] top-[-120px] h-72 w-72 rounded-full bg-[#2D6741] opacity-70 blur-3xl" />
-      <div className="absolute bottom-[-120px] left-[-100px] h-72 w-72 rounded-full bg-[#DFA75A] opacity-25 blur-3xl" />
-
-      <div className="relative z-10 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-        <div>
-          <Badge tone="gold">
-            <Truck className="h-3 w-3" />
-            Farm order tracker
-          </Badge>
-
-          <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[0.96] tracking-[-0.055em] sm:text-5xl">
-            Track every fresh order with confidence.
-          </h1>
-
-          <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78 sm:text-base">
-            View your order history, payment status, fulfillment progress, pickup or delivery details, and fresh market receipts.
-          </p>
+    <div className="rounded-[26px] border border-[#D8E5D4] bg-white p-5 shadow-[0_16px_45px_rgba(24,59,40,0.06)]">
+      <div className="flex items-center gap-4">
+        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#EAF5E7] text-[#2D6741]">
+          <Icon className="h-6 w-6" />
         </div>
-
-        <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[430px]">
-          <HeroStat label="Orders" value={totalOrders} />
-          <HeroStat label="Active" value={activeOrders} />
-          <HeroStat label="Spent" value={formatJmd(totalSpent)} />
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#DFA75A]">{label}</p>
+          <p className="mt-1 text-2xl font-black text-[#183B28]">{value}</p>
         </div>
       </div>
-    </section>
-  );
-}
-
-function HeroStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur">
-      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#DFA75A]">
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-black">{value}</p>
     </div>
   );
 }
 
-function MetricCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <Card className="rounded-[28px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_rgba(24,59,40,0.10)]">
-      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-farm-primarySoft text-farm-primary">
-        {icon}
-      </div>
-
-      <p className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-farm-muted">
-        {label}
-      </p>
-
-      <p className="mt-1 text-2xl font-black text-farm-primaryDark">
-        {value}
-      </p>
-    </Card>
-  );
-}
-
-function OrderCard({ order }: { order: FarmOrder }) {
-  const status = order.order_status || order.status || 'confirmed';
-  const paymentStatus = order.payment_status || 'pending';
-  const deliveryStatus = order.delivery_status || 'pending';
-  const fulfillmentType = order.fulfillment_type || 'pickup';
+function OrderCard({ order }: { order: OrderWithItems }) {
+  const status = orderStatus(order);
+  const total = orderTotal(order);
+  const items = Array.isArray(order.order_items) ? order.order_items : [];
 
   return (
-    <Link href={`/orders/${order.id}`} className="block">
-      <Card className="group rounded-[30px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(24,59,40,0.12)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="gold">Order #{shortIdLabel(order.id)}</Badge>
-              <StatusChip status={status} />
-              <StatusChip status={paymentStatus} />
-              <StatusChip status={deliveryStatus} />
-            </div>
-
-            <h3 className="mt-3 text-2xl font-black tracking-[-0.035em] text-farm-primaryDark">
-              {formatJmd(order.total || 0)}
-            </h3>
-
-            <p className="mt-1 text-sm font-bold text-farm-muted">
-              {formatDateTime(order.created_at)} • {fulfillmentType}
-              {order.scheduled_date ? ` • ${order.scheduled_date}` : ''}
-            </p>
+    <article className="overflow-hidden rounded-[30px] border border-[#D8E5D4] bg-white shadow-[0_20px_60px_rgba(24,59,40,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_70px_rgba(24,59,40,0.10)]">
+      <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-start">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#DFA75A]">Order #HPJ-{shortOrderId(order.id)}</p>
+            <span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${statusStyle(status)}`}>
+              {cleanLabel(status)}
+            </span>
+            {order.payment_status ? (
+              <span className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${statusStyle(order.payment_status)}`}>
+                {cleanLabel(order.payment_status)}
+              </span>
+            ) : null}
           </div>
 
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-farm-border bg-white px-4 py-2 text-sm font-black text-farm-primary transition group-hover:border-farm-primary/35 group-hover:bg-farm-primarySoft">
-            View details
-            <ArrowRight className="h-4 w-4" />
-          </span>
+          <h2 className="mt-3 font-serif text-2xl font-black tracking-[-0.035em] text-[#183B28] sm:text-3xl">
+            {formatJmdLocal(total)}
+          </h2>
+
+          <div className="mt-4 grid gap-3 text-sm font-semibold text-[#5F6A62] sm:grid-cols-2 lg:grid-cols-4">
+            <InfoPill icon={CalendarDays} label="Placed" value={formatDateLocal(order.created_at)} />
+            <InfoPill icon={Truck} label="Fulfillment" value={cleanLabel(order.fulfillment_type, 'Pickup / Delivery')} />
+            <InfoPill icon={CreditCard} label="Payment" value={cleanLabel(order.payment_method || order.payment_status, 'Pending')} />
+            <InfoPill icon={Clock} label="Schedule" value={order.scheduled_date ? `${order.scheduled_date}${order.scheduled_time ? ` • ${order.scheduled_time}` : ''}` : 'To be confirmed'} />
+          </div>
+
+          {items.length ? (
+            <div className="mt-5 rounded-2xl border border-[#D8E5D4] bg-[#F8FAF2] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#DFA75A]">Items</p>
+              <div className="mt-3 grid gap-2">
+                {items.slice(0, 4).map((item, index) => (
+                  <div key={item.id || `${item.product_name}-${index}`} className="flex items-center justify-between gap-4 text-sm font-bold text-[#183B28]">
+                    <span className="min-w-0 truncate">{item.product_name || 'Harvest item'} × {toNumber(item.quantity) || 1}</span>
+                    <span className="shrink-0 text-[#5F6A62]">{formatJmdLocal(item.line_total || item.unit_price || 0)}</span>
+                  </div>
+                ))}
+                {items.length > 4 ? <p className="text-xs font-bold text-[#5F6A62]">+{items.length - 4} more items</p> : null}
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        <OrderTimeline status={status} deliveryStatus={deliveryStatus} />
-      </Card>
-    </Link>
+        <div className="flex flex-col gap-3 lg:items-end">
+          <Link href={`/orders/${order.id}`} className="inline-flex items-center justify-center gap-2 rounded-full bg-[#2D6741] px-5 py-3 text-sm font-black text-white shadow-[0_16px_35px_rgba(45,103,65,0.22)] transition hover:bg-[#183B28]">
+            Track order
+            <CheckCircle2 className="h-4 w-4" />
+          </Link>
+          <Link href="/support" className="inline-flex items-center justify-center rounded-full border border-[#D8E5D4] bg-white px-5 py-3 text-sm font-black text-[#183B28] transition hover:bg-[#F4F9F2]">
+            Need help?
+          </Link>
+        </div>
+      </div>
+    </article>
   );
 }
 
-function OrderTimeline({
-  status,
-  deliveryStatus,
-}: {
-  status?: string | null;
-  deliveryStatus?: string | null;
-}) {
-  const text = `${status || ''} ${deliveryStatus || ''}`.toLowerCase();
-
-  const current = text.includes('deliver') || text.includes('complete')
-    ? 4
-    : text.includes('out')
-      ? 3
-      : text.includes('transit') || text.includes('ship')
-        ? 2
-        : text.includes('pack') || text.includes('prepar')
-          ? 1
-          : 0;
-
-  const steps = [
-    { label: 'Confirmed', icon: CheckCircle2 },
-    { label: 'Packed', icon: PackageCheck },
-    { label: 'In transit', icon: Truck },
-    { label: 'Out for delivery', icon: Truck },
-    { label: 'Delivered', icon: CheckCircle2 },
-  ];
-
+function InfoPill({ icon: Icon, label, value }: { icon: typeof CalendarDays; label: string; value: string }) {
   return (
-    <div className="mt-6 grid gap-2 sm:grid-cols-5">
-      {steps.map((step, index) => {
-        const Icon = step.icon;
-        const done = index <= current;
-
-        return (
-          <div
-            key={step.label}
-            className={cn(
-              'rounded-2xl border p-3 text-center transition',
-              done
-                ? 'border-farm-primary/20 bg-farm-primarySoft text-farm-primaryDark'
-                : 'border-farm-border bg-white text-farm-muted'
-            )}
-          >
-            <Icon className="mx-auto h-4 w-4" />
-            <p className="mt-2 text-[11px] font-black">{step.label}</p>
-          </div>
-        );
-      })}
+    <div className="rounded-2xl border border-[#D8E5D4] bg-white px-4 py-3">
+      <div className="flex items-center gap-2 text-[#2D6741]">
+        <Icon className="h-4 w-4" />
+        <span className="text-[10px] font-black uppercase tracking-[0.14em]">{label}</span>
+      </div>
+      <p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-[#5F6A62]">{value}</p>
     </div>
   );
 }

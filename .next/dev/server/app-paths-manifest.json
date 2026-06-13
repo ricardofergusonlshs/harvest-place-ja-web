@@ -1,8 +1,6 @@
 {
-  "/page": "app/page.js",
   "/orders/page": "app/orders/page.js",
-  "/shop/page": "app/shop/page.js",
-  "/ready-soon/page": "app/ready-soon/page.js",
-  "/account/page": "app/account/page.js",
-  "/weekly-box/page": "app/weekly-box/page.js"
+  "/orders/[id]/page": "app/orders/[id]/page.js",
+  "/support/page": "app/support/page.js",
+  "/my-box/page": "app/my-box/page.js"
 }

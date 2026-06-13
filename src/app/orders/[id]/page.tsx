@@ -1,17 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  CreditCard,
+  MessageCircle,
   PackageCheck,
   ReceiptText,
   RefreshCw,
   ShieldCheck,
+  Sprout,
   Truck,
 } from 'lucide-react';
 import {
@@ -34,7 +35,7 @@ export default function OrderDetailPage() {
       fallback={
         <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 sm:px-6 lg:px-10">
           <section className="mx-auto max-w-6xl">
-            <LoadingState label="Loading premium order tracker..." />
+            <LoadingState label="Loading safe harvest request tracker..." />
           </section>
         </main>
       }
@@ -59,7 +60,7 @@ function OrderDetailContent() {
   async function loadOrder(showRefreshState = false) {
     if (!orderId) {
       setLoading(false);
-      setError('No order ID was found in the page address.');
+      setError('No request ID was found in the page address.');
       return;
     }
 
@@ -72,10 +73,10 @@ function OrderDetailContent() {
       const row = await fetchOrderDetails(orderId);
       setOrder(row);
     } catch (err) {
-      console.error('Order details failed to load:', err);
+      console.error('Harvest request details failed to load:', err);
       setOrder(null);
       setError(
-        'This order could not be loaded. It may not exist, or your account may not have permission to view it.'
+        'This harvest request could not be loaded. It may not exist, or your account may not have permission to view it.'
       );
     } finally {
       setLoading(false);
@@ -90,7 +91,7 @@ function OrderDetailContent() {
       if (!orderId) {
         if (active) {
           setLoading(false);
-          setError('No order ID was found in the page address.');
+          setError('No request ID was found in the page address.');
         }
         return;
       }
@@ -102,12 +103,12 @@ function OrderDetailContent() {
         const row = await fetchOrderDetails(orderId);
         if (active) setOrder(row);
       } catch (err) {
-        console.error('Order details failed to load:', err);
+        console.error('Harvest request details failed to load:', err);
 
         if (active) {
           setOrder(null);
           setError(
-            'This order could not be loaded. It may not exist, or your account may not have permission to view it.'
+            'This harvest request could not be loaded. It may not exist, or your account may not have permission to view it.'
           );
         }
       } finally {
@@ -126,7 +127,7 @@ function OrderDetailContent() {
     return (
       <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 sm:px-6 lg:px-10">
         <section className="mx-auto max-w-6xl">
-          <LoadingState label="Loading premium order tracker..." />
+          <LoadingState label="Loading safe harvest request tracker..." />
         </section>
       </main>
     );
@@ -143,8 +144,8 @@ function OrderDetailContent() {
           ) : null}
 
           <EmptyState
-            title="Order not found"
-            subtitle="This order could not be loaded. Check your account, refresh the page, or contact support."
+            title="Harvest request not found"
+            subtitle="This request could not be loaded. Check your account, refresh the page, or message platform support."
             action={
               <div className="flex flex-wrap justify-center gap-3">
                 <Button onClick={() => loadOrder(true)} variant="secondary">
@@ -153,7 +154,7 @@ function OrderDetailContent() {
                 </Button>
 
                 <Button href="/orders">
-                  Back to orders
+                  Back to requests
                 </Button>
               </div>
             }
@@ -175,7 +176,7 @@ function OrderDetailContent() {
       <section className="mx-auto max-w-[1250px] px-4 py-8 sm:px-6 lg:px-10">
         {success ? (
           <div className="mb-6 rounded-3xl border border-[#2D6741]/20 bg-[#EAF5E7] p-4 text-sm font-black text-[#2D6741]">
-            Order placed successfully. Your premium order tracker is ready.
+            Harvest request received. Your safe platform tracker is ready.
           </div>
         ) : null}
 
@@ -189,14 +190,14 @@ function OrderDetailContent() {
 
         <div className="mt-8">
           <SectionHeader
-            eyebrow={`Order #${shortIdLabel(order.id)}`}
-            title="Premium order tracker"
-            subtitle="Follow payment, fulfillment, delivery, and farm item details from your order."
+            eyebrow={`Request #${shortIdLabel(order.id)}`}
+            title="Safe harvest request tracker"
+            subtitle="Follow farm items, request status, payment details, pickup or delivery updates, and platform support in one place."
             action={
               <div className="flex flex-wrap gap-3">
                 <Button href="/orders" variant="secondary">
                   <ArrowLeft className="h-4 w-4" />
-                  Back to orders
+                  Back to requests
                 </Button>
 
                 <Button
@@ -209,7 +210,8 @@ function OrderDetailContent() {
                 </Button>
 
                 <Button href="/support" variant="secondary">
-                  Contact support
+                  <MessageCircle className="h-4 w-4" />
+                  Message support
                 </Button>
               </div>
             }
@@ -220,12 +222,31 @@ function OrderDetailContent() {
           <Card className="rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_18px_50px_rgba(24,59,40,0.06)]">
             <OrderTimeline status={status} deliveryStatus={deliveryStatus} />
 
+            <div className="mt-8 rounded-[26px] border border-[#D8E5D4] bg-[#F4F9F2] p-4">
+              <div className="flex items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-[#2D6741] shadow-sm">
+                  <ShieldCheck className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-base font-black text-[#183B28]">
+                    Platform-only request protection
+                  </h2>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-[#5F6A62]">
+                    For safety, all produce requests, messages, pickup or delivery updates, and order discussions must stay inside The Harvest Place Ja. Do not share phone numbers, WhatsApp, email, social handles, or outside links.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-8">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <Badge tone="green">Farm items</Badge>
+                  <Badge tone="green">
+                    <Sprout className="h-3 w-3" />
+                    Farm harvest items
+                  </Badge>
                   <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] text-[#183B28]">
-                    Order items
+                    Requested farm items
                   </h2>
                 </div>
 
@@ -236,30 +257,38 @@ function OrderDetailContent() {
 
               <div className="grid gap-3">
                 {items.length ? (
-                  items.map((item, index) => (
-                    <div
-                      key={item.id || index}
-                      className="flex flex-col gap-3 rounded-3xl border border-[#D8E5D4] bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-black text-[#183B28]">
-                          {item.product_name || 'Farm item'}
-                        </p>
+                  items.map((item, index) => {
+                    const farmName = item.farm_name || 'Partner farm';
 
-                        <p className="mt-1 text-sm font-bold text-[#5F6A62]">
-                          Qty {item.quantity}
-                          {item.farm_name ? ` • ${item.farm_name}` : ''}
-                        </p>
+                    return (
+                      <div
+                        key={item.id || index}
+                        className="flex flex-col gap-3 rounded-3xl border border-[#D8E5D4] bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="font-black text-[#183B28]">
+                            {item.product_name || 'Farm item'}
+                          </p>
+
+                          <p className="mt-1 text-sm font-bold text-[#5F6A62]">
+                            Qty {item.quantity} • {farmName}
+                          </p>
+                        </div>
+
+                        <div className="text-left sm:text-right">
+                          <p className="font-black text-[#183B28]">
+                            {formatJmd(item.line_total || 0)}
+                          </p>
+                          <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#2D6741]">
+                            Platform request
+                          </p>
+                        </div>
                       </div>
-
-                      <p className="font-black text-[#183B28]">
-                        {formatJmd(item.line_total || 0)}
-                      </p>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="rounded-3xl border border-[#D8E5D4] bg-[#F4F9F2] p-4 text-sm font-semibold text-[#5F6A62]">
-                    Item details are not available yet.
+                    Farm item details are not available yet.
                   </p>
                 )}
               </div>
@@ -268,7 +297,7 @@ function OrderDetailContent() {
             {order.notes ? (
               <div className="mt-6 rounded-3xl border border-[#D8E5D4] bg-[#F4F9F2] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-[#2D6741]">
-                  Order notes
+                  Platform request notes
                 </p>
 
                 <pre className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-[#5F6A62]">
@@ -282,7 +311,7 @@ function OrderDetailContent() {
             <Card className="rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_18px_50px_rgba(24,59,40,0.06)]">
               <Badge tone="gold">
                 <ReceiptText className="h-3 w-3" />
-                Receipt
+                Request summary
               </Badge>
 
               <div className="mt-5 grid gap-3 text-sm font-bold text-[#5F6A62]">
@@ -306,31 +335,32 @@ function OrderDetailContent() {
 
             <Card className="rounded-[28px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.06)]">
               <div className="grid gap-3">
-                <StatusLine label="Order" status={status} />
+                <StatusLine label="Request" status={status} />
                 <StatusLine label="Payment" status={paymentStatus} />
-                <StatusLine label="Delivery" status={deliveryStatus} />
+                <StatusLine label="Pickup / delivery" status={deliveryStatus} />
               </div>
             </Card>
 
             <Card className="rounded-[28px] border border-[#D8E5D4] bg-[#183B28] p-5 text-white shadow-[0_18px_50px_rgba(24,59,40,0.10)]">
               <Badge tone="gold">
                 <ShieldCheck className="h-3 w-3" />
-                Support ready
+                Platform support
               </Badge>
 
               <h3 className="mt-4 text-xl font-black">
-                Need help with this order?
+                Need help with this request?
               </h3>
 
               <p className="mt-2 text-sm font-semibold leading-6 text-white/76">
-                Contact support with your order number and we will help you check payment, pickup, delivery, or item details.
+                Message support with your request number. We can help with payment, pickup, delivery, farm item details, and platform-only communication.
               </p>
 
               <Link
                 href="/support"
-                className="mt-5 inline-flex rounded-full bg-[#FFF3D9] px-5 py-3 text-sm font-black text-[#183B28] transition hover:bg-white"
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#FFF3D9] px-5 py-3 text-sm font-black text-[#183B28] transition hover:bg-white"
               >
-                Contact support
+                Message support
+                <MessageCircle className="h-4 w-4" />
               </Link>
             </Card>
           </aside>
@@ -362,15 +392,15 @@ function OrderHero({
         <div>
           <Badge tone="gold">
             <PackageCheck className="h-3 w-3" />
-            Order #{shortIdLabel(order.id)}
+            Request #{shortIdLabel(order.id)}
           </Badge>
 
           <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[0.96] tracking-[-0.055em] sm:text-5xl">
-            Your harvest order is being tracked.
+            Your harvest request is being tracked safely.
           </h1>
 
           <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78 sm:text-base">
-            View your fresh item list, payment status, pickup or delivery details, and order progress in one place.
+            View your farm item list, payment status, pickup or delivery details, and request progress while keeping all communication inside The Harvest Place Ja.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -466,11 +496,11 @@ function OrderTimeline({
             : 0;
 
   const steps = [
-    { label: 'Confirmed', icon: CheckCircle2 },
-    { label: 'Packed', icon: PackageCheck },
-    { label: 'In transit', icon: Truck },
-    { label: 'Out for delivery', icon: Truck },
-    { label: 'Delivered', icon: Clock },
+    { label: 'Request received', icon: CheckCircle2 },
+    { label: 'Farm reviewing', icon: Sprout },
+    { label: 'Being prepared', icon: PackageCheck },
+    { label: 'Pickup / delivery', icon: Truck },
+    { label: 'Completed', icon: Clock },
   ];
 
   return (

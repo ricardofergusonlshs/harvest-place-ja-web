@@ -7,6 +7,7 @@
   "/auth/page": "/auth",
   "/checkout/page": "/checkout",
   "/farmer/page": "/farmer",
+  "/farms/[farmSlug]/page": "/farms/[farmSlug]",
   "/invite/page": "/invite",
   "/my-box/page": "/my-box",
   "/notifications/page": "/notifications",

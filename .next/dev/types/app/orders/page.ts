@@ -1,4 +1,4 @@
-// File: C:\Users\home\OneDrive - MOE-CI\Desktop\HPJ\harvest-place-ja-web\harvest-place-ja-web\src\app\orders\page.tsx
+// File: C:\Projects\harvest-place-ja-web\harvest-place-ja-web\src\app\orders\page.tsx
 import * as entry from '../../../../../src/app/orders/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

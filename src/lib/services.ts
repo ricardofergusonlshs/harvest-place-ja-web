@@ -463,65 +463,238 @@ export async function secureCheckout(input: {
 
 export async function fetchOrders() {
   const supabase = getSupabaseBrowserClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
   if (!user) return [];
+
+  const userId = user.id;
+  const userEmail = user.email?.trim() || null;
+
+  // Keep this select small and compatible with the Android app table.
+  // If we select columns that do not exist in the production orders table,
+  // Supabase returns an error and the website appears to have zero orders.
+  const safeOrderSelect =
+    'id, customer_id, order_status, fulfillment_type, subtotal, delivery_fee, created_at';
+
+  function normalizeOrderRows(data: unknown): FarmOrder[] {
+    return rows<JsonMap>(data).map((row) => {
+      const subtotal = Number(row.subtotal ?? 0);
+      const deliveryFee = Number(row.delivery_fee ?? 0);
+      const discountAmount = Number(row.discount_amount ?? 0);
+      const total = Number(row.total ?? subtotal + deliveryFee - discountAmount);
+      const orderStatus = String(row.order_status ?? row.status ?? 'pending');
+
+      return {
+        ...row,
+        status: row.status ?? orderStatus,
+        order_status: orderStatus,
+        subtotal,
+        delivery_fee: deliveryFee,
+        discount_amount: discountAmount,
+        total
+      } as FarmOrder;
+    });
+  }
 
   try {
     const customerId = await currentCustomerIdForSignedInUser();
-    let query = supabase
-      .from('orders')
-      .select('id, order_status, status, fulfillment_type, subtotal, delivery_fee, discount_amount, total, payment_status, payment_method, delivery_status, scheduled_date, scheduled_time, created_at')
-      .order('created_at', { ascending: false })
-      .limit(100);
 
-    if (customerId) query = query.eq('customer_id', customerId);
-    else query = query.ilike('email', user.email ?? '');
+    if (customerId) {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('orders')
+          .select(safeOrderSelect)
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: false })
+          .limit(100),
+        'customer orders by customers.id request'
+      );
 
-    const { data, error } = await withTimeout(query, 'customer orders request');
-    if (error) throw error;
-    return rows<FarmOrder>(data);
-  } catch (error) {
-    logSupabaseError('Orders could not load. Check orders SELECT RLS policy for the signed-in user', error);
+      if (error) throw error;
+
+      return normalizeOrderRows(data);
+    }
+
+    logSupabaseError(
+      'Orders could not load',
+      `No readable customers row found for signed-in user ${userId}${userEmail ? ` / ${userEmail}` : ''}.`
+    );
+
     return [];
+  } catch (customerIdError) {
+    logSupabaseError('Primary customer_id order lookup failed', customerIdError);
   }
+
+  // Last-resort fallbacks for older web-created order rows, only if those columns exist.
+  if (userEmail) {
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('orders')
+          .select(safeOrderSelect)
+          .ilike('email', userEmail)
+          .order('created_at', { ascending: false })
+          .limit(100),
+        'customer orders by email fallback request'
+      );
+
+      if (error) throw error;
+      return normalizeOrderRows(data);
+    } catch (emailLookupError) {
+      logSupabaseError('Orders email fallback failed or orders.email does not exist', emailLookupError);
+    }
+  }
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('orders')
+        .select(safeOrderSelect)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+      'customer orders by user_id fallback request'
+    );
+
+    if (error) throw error;
+    return normalizeOrderRows(data);
+  } catch (userIdLookupError) {
+    logSupabaseError('Orders user_id fallback failed or orders.user_id does not exist', userIdLookupError);
+  }
+
+  return [];
 }
 
 export async function fetchOrderDetails(orderId: string) {
   const supabase = getSupabaseBrowserClient();
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('orders')
+        .select('id, customer_id, order_status, fulfillment_type, subtotal, delivery_fee, created_at, customers(full_name, phone, address), order_items(id, order_id, product_id, product_name, quantity, unit_price, line_total)')
+        .eq('id', orderId)
+        .maybeSingle(),
+      'order detail compatible request'
+    );
+
+    if (error) throw error;
+
+    if (!data) return null;
+
+    const row = mapRow(data);
+    const subtotal = Number(row.subtotal ?? 0);
+    const deliveryFee = Number(row.delivery_fee ?? 0);
+    const discountAmount = Number(row.discount_amount ?? 0);
+    const total = Number(row.total ?? subtotal + deliveryFee - discountAmount);
+    const orderStatus = String(row.order_status ?? row.status ?? 'pending');
+
+    return {
+      ...row,
+      status: row.status ?? orderStatus,
+      order_status: orderStatus,
+      subtotal,
+      delivery_fee: deliveryFee,
+      discount_amount: discountAmount,
+      total
+    } as FarmOrder;
+  } catch (primaryError) {
+    logSupabaseError('Order detail compatible request failed; trying minimal fallback', primaryError);
+  }
+
   const { data, error } = await withTimeout(
     supabase
       .from('orders')
-      .select('id, order_status, status, fulfillment_type, subtotal, delivery_fee, discount_amount, discount_code, total, payment_status, payment_method, bank_reference, delivery_status, delivery_address, delivery_zone, scheduled_date, scheduled_time, notes, created_at, customers(full_name, phone, address), order_items(id, product_id, product_name, quantity, unit_price, line_total, farmer_id, farmer_name, farm_name)')
+      .select('id, customer_id, order_status, fulfillment_type, subtotal, delivery_fee, created_at')
       .eq('id', orderId)
       .maybeSingle(),
-    'order detail request'
+    'order detail minimal fallback request'
   );
 
   if (error) throw error;
-  return data as FarmOrder | null;
+  if (!data) return null;
+
+  const row = mapRow(data);
+  const subtotal = Number(row.subtotal ?? 0);
+  const deliveryFee = Number(row.delivery_fee ?? 0);
+  const orderStatus = String(row.order_status ?? 'pending');
+
+  return {
+    ...row,
+    status: orderStatus,
+    order_status: orderStatus,
+    subtotal,
+    delivery_fee: deliveryFee,
+    discount_amount: 0,
+    total: subtotal + deliveryFee
+  } as FarmOrder;
 }
 
 export async function currentCustomerIdForSignedInUser() {
   const supabase = getSupabaseBrowserClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
   if (!user) return null;
+
+  const userId = user.id;
+  const userEmail = user.email?.trim() || null;
 
   try {
     const { data, error } = await withTimeout(
       supabase
         .from('customers')
-        .select('id')
-        .eq('user_id', user.id)
+        .select('id, user_id, email, created_at')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
-      'current customer lookup request'
+      'current customer lookup by user_id request'
     );
 
     if (error) throw error;
-    return data?.id ? String(data.id) : null;
-  } catch (error) {
-    logSupabaseError('Customer profile lookup failed', error);
+    if (data?.id) return String(data.id);
+  } catch (userIdError) {
+    logSupabaseError('Customer lookup by user_id failed', userIdError);
+  }
+
+  if (!userEmail) return null;
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('customers')
+        .select('id, user_id, email, created_at')
+        .ilike('email', userEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      'current customer lookup by email request'
+    );
+
+    if (error) throw error;
+    if (!data?.id) return null;
+
+    const customerId = String(data.id);
+
+    // Best-effort link so future website/app reads match through user_id.
+    if (!data.user_id) {
+      const { error: linkError } = await supabase
+        .from('customers')
+        .update({ user_id: userId })
+        .eq('id', customerId);
+
+      if (linkError) {
+        logSupabaseError('Customer user_id auto-link failed', linkError);
+      }
+    }
+
+    return customerId;
+  } catch (emailError) {
+    logSupabaseError('Customer lookup by email failed', emailError);
     return null;
   }
 }
@@ -530,9 +703,45 @@ export async function fetchCurrentCustomerProfile() {
   const supabase = getSupabaseBrowserClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data, error } = await supabase.from('customers').select('id, full_name, phone, address, user_id, email').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) return null;
-  return data as CustomerProfile | null;
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('customers')
+        .select('id, full_name, phone, address, user_id, email')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      'current customer profile by user_id request'
+    );
+
+    if (error) throw error;
+    if (data) return data as CustomerProfile;
+  } catch (userIdError) {
+    logSupabaseError('Customer profile by user_id failed', userIdError);
+  }
+
+  if (!user.email) return null;
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('customers')
+        .select('id, full_name, phone, address, user_id, email')
+        .ilike('email', user.email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      'current customer profile by email request'
+    );
+
+    if (error) throw error;
+    return data as CustomerProfile | null;
+  } catch (emailError) {
+    logSupabaseError('Customer profile by email failed', emailError);
+    return null;
+  }
 }
 
 export async function saveCurrentCustomerProfile(profile: { full_name: string; phone: string; address?: string }) {
