@@ -1,82 +1,35 @@
-'use client';
+﻿'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
-import {
-  ArrowRight,
-  CheckCircle2,
-  Minus,
-  Plus,
-  ShieldCheck,
-  ShoppingBag,
-  Sparkles,
-  Trash2,
-  Truck,
-  XCircle,
-} from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  SectionHeader,
-} from '@/components/ui';
+import { Minus, Plus, ShieldCheck, ShoppingBag, Trash2, Truck } from 'lucide-react';
+
+import { Badge, Button, Card, EmptyState } from '@/components/ui';
 import { useCart } from '@/components/providers/cart-provider';
 import { effectivePrice } from '@/lib/product';
 import { formatJmd } from '@/lib/format';
 
-const FALLBACK_IMAGE = '/elite/weekly-box-banner.png';
+const FALLBACK_IMAGE = '/logo.png';
 
 type CartLine = ReturnType<typeof useCart>['lines'][number];
 
 export default function MyBoxPage() {
-  const { lines, subtotal, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { lines, count, subtotal, updateQuantity, removeFromCart, clearCart } = useCart();
 
-  const [coupon, setCoupon] = useState('');
-  const [message, setMessage] = useState('');
-
-  const itemCount = useMemo(
-    () => lines.reduce((sum, line) => sum + line.quantity, 0),
-    [lines]
-  );
-
-  const estimatedDelivery = subtotal > 0 ? 800 : 0;
-  const loyaltyPoints = Math.floor(subtotal / 100);
-
-  const estimatedTotal = useMemo(
-    () => subtotal + estimatedDelivery,
-    [subtotal, estimatedDelivery]
-  );
-
-  function saveCoupon() {
-    const cleanCoupon = coupon.trim().toUpperCase();
-
-    if (!cleanCoupon) {
-      setMessage('Enter a code or short note to save it with your box.');
-      return;
-    }
-
-    try {
-      localStorage.setItem('harvest-place-ja-pending-coupon', cleanCoupon);
-      setMessage(`${cleanCoupon} saved. It will be checked before final confirmation.`);
-    } catch {
-      setMessage('The code could not be saved on this device. You can enter it again later.');
-    }
-  }
+  const deliveryEstimate = subtotal > 0 ? 500 : 0;
+  const estimatedTotal = subtotal + deliveryEstimate;
 
   if (!lines.length) {
     return (
-      <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] px-4 py-10 text-[#183B28] sm:px-6 lg:px-10">
+      <main className="min-h-screen bg-[#FAF8F0] px-4 py-10 text-[#183B28] sm:px-6 lg:px-8">
         <section className="mx-auto max-w-5xl">
           <EmptyState
             title="Your box is empty"
-            subtitle="Start by shopping this week’s fresh harvest."
+            subtitle="Start shopping fresh Jamaican produce and add items to your box."
             action={
               <div className="flex flex-wrap justify-center gap-3">
-                <Button href="/shop">Shop This Week’s Harvest</Button>
-                <Button href="/" variant="secondary">
-                  Back to home
+                <Button href="/shop">Shop Produce</Button>
+                <Button href="/orders" variant="secondary">
+                  Track My Orders Live
                 </Button>
               </div>
             }
@@ -87,131 +40,132 @@ export default function MyBoxPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_44%,#FFFEFC_100%)] text-[#183B28]">
-      <section className="mx-auto max-w-[1450px] px-4 py-8 sm:px-6 lg:px-10">
-        <BoxHero itemCount={itemCount} subtotal={subtotal} />
+    <main className="min-h-screen bg-[#FAF8F0] text-[#183B28]">
+      <section className="mx-auto max-w-[1380px] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mb-5 rounded-[1.75rem] border border-[#D8E5D4] bg-white/90 p-5 shadow-[0_16px_45px_rgba(24,59,40,0.06)] sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <Badge tone="green">
+                <ShoppingBag className="h-3 w-3" />
+                My Box
+              </Badge>
 
-        <div className="mt-8">
-          <SectionHeader
-            eyebrow="My Box"
-            title="Review your selected produce"
-            subtitle="Review your selected produce before checkout."
-            action={
-              <div className="flex flex-wrap gap-3">
-                <Button href="/shop" variant="secondary">
-                  Shop more produce
-                </Button>
-                <Button href="/checkout">
-                  Continue to Checkout
-                </Button>
-              </div>
-            }
-          />
+              <h1 className="mt-3 text-3xl font-black tracking-tight text-[#183B28] sm:text-4xl">
+                Review your cart
+              </h1>
+
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[#5F6A62]">
+                Check your items, adjust quantities, remove anything you do not need, then continue to checkout.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Button href="/shop" variant="secondary">
+                Shop more produce
+              </Button>
+              <Button href="/checkout">
+                Continue to Checkout
+              </Button>
+            </div>
+          </div>
         </div>
 
-        {message ? (
-          <div className="mb-5 mt-5 rounded-3xl border border-[#2D6741]/15 bg-[#EAF5E7] p-4 text-sm font-black text-[#2D6741]">
-            {message}
-          </div>
-        ) : null}
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <section className="space-y-4">
+            <Card className="rounded-[1.5rem] border border-[#D8E5D4] bg-white p-4 shadow-[0_12px_35px_rgba(24,59,40,0.04)] sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-xl font-black text-[#183B28] sm:text-2xl">
+                  Items in your box
+                </h2>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_410px]">
-          <div className="grid gap-4">
-            {lines.map((line) => (
-              <CartItemCard
-                key={String(line.product.id)}
-                line={line}
-                onUpdate={(productId, quantity) => updateQuantity(productId, quantity)}
-                onRemove={(productId) => removeFromCart(productId)}
-              />
-            ))}
-
-            <Card className="flex flex-col gap-4 rounded-[28px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.06)] sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-lg font-black text-[#183B28]">
-                  Want to start over?
-                </h3>
-                <p className="mt-1 text-sm font-semibold text-[#5F6A62]">
-                  Clear your current box and choose fresh items again from the shop.
+                <p className="text-sm font-black text-[#5F6A62]">
+                  Subtotal ({count} item{count === 1 ? '' : 's'}):{' '}
+                  <span className="text-[#183B28]">{formatJmd(subtotal)}</span>
                 </p>
               </div>
-
-              <Button variant="danger" onClick={clearCart}>
-                <XCircle className="h-4 w-4" />
-                Clear box
-              </Button>
             </Card>
-          </div>
 
-          <aside className="space-y-5">
-            <Card className="sticky top-32 h-fit rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_24px_70px_rgba(24,59,40,0.10)]">
+            <div className="grid gap-4">
+              {lines.map((line) => (
+                <CartItemCard
+                  key={String(line.product.id)}
+                  line={line}
+                  onMinus={() => updateQuantity(String(line.product.id), line.quantity - 1)}
+                  onPlus={() => updateQuantity(String(line.product.id), line.quantity + 1)}
+                  onRemove={() => removeFromCart(String(line.product.id))}
+                />
+              ))}
+            </div>
+
+            <Card className="rounded-[1.5rem] border border-[#D8E5D4] bg-white p-5 shadow-[0_12px_35px_rgba(24,59,40,0.04)]">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-[#183B28]">
+                    Need a fresh start?
+                  </h3>
+                  <p className="mt-1 text-sm font-semibold text-[#5F6A62]">
+                    Clear your box and choose fresh items again.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={clearCart}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-5 py-3 text-sm font-black text-red-700 transition hover:bg-red-100"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Clear Box
+                </button>
+              </div>
+            </Card>
+          </section>
+
+          <aside className="space-y-4">
+            <Card className="rounded-[1.75rem] border border-[#D8E5D4] bg-white p-6 shadow-[0_24px_65px_rgba(24,59,40,0.10)] xl:sticky xl:top-28">
               <Badge tone="gold">
                 <ShieldCheck className="h-3 w-3" />
                 Secure box summary
               </Badge>
 
-              <h2 className="mt-4 text-2xl font-black tracking-[-0.035em] text-[#183B28]">
+              <h2 className="mt-4 text-2xl font-black text-[#183B28]">
                 Your estimate
               </h2>
 
               <div className="mt-5 grid gap-3 text-sm font-bold text-[#5F6A62]">
-                <SummaryRow label="Items" value={itemCount} />
-                <SummaryRow label="Produce subtotal" value={formatJmd(subtotal)} />
-                <SummaryRow label="Estimated delivery" value={formatJmd(estimatedDelivery)} />
+                <SummaryRow label={`Items (${count})`} value={formatJmd(subtotal)} />
+                <SummaryRow label="Estimated delivery" value={formatJmd(deliveryEstimate)} />
+                <SummaryRow label="Pickup option" value="Available at checkout" />
 
-                <div className="flex justify-between text-[#2D6741]">
-                  <span>Loyalty preview</span>
-                  <span>{loyaltyPoints} pts</span>
-                </div>
+                <div className="mt-2 border-t border-[#D8E5D4] pt-4">
+                  <div className="flex items-center justify-between gap-4 text-xl font-black text-[#183B28]">
+                    <span>Total</span>
+                    <span>{formatJmd(estimatedTotal)}</span>
+                  </div>
 
-                <div className="flex justify-between border-t border-[#D8E5D4] pt-4 text-xl font-black text-[#183B28]">
-                  <span>Estimated total</span>
-                  <span>{formatJmd(estimatedTotal)}</span>
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-3xl border border-[#D8E5D4] bg-[#F4F9F2] p-3">
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-[#183B28]">
-                  Code or note
-                </label>
-
-                <div className="flex gap-2">
-                  <input
-                    value={coupon}
-                    onChange={(event) => setCoupon(event.target.value)}
-                    placeholder="e.g. FRESH10"
-                    className="min-w-0 flex-1 rounded-full border border-[#D8E5D4] bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#2D6741]"
-                  />
-
-                  <Button variant="secondary" onClick={saveCoupon}>
-                    Save
-                  </Button>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-[#5F6A62]">
+                    Final delivery fee and availability are confirmed at checkout.
+                  </p>
                 </div>
               </div>
 
-              <Button href="/checkout" className="mt-5 w-full">
-                <ShoppingBag className="h-4 w-4" />
+              <Button href="/checkout" className="mt-6 w-full">
                 Continue to Checkout
               </Button>
 
-              <Button href="/shop" variant="ghost" className="mt-2 w-full">
-                Shop more produce
+              <Button href="/shop" variant="secondary" className="mt-3 w-full">
+                Add More Items
               </Button>
             </Card>
 
-            <Card className="rounded-[28px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.06)]">
+            <Card className="rounded-[1.75rem] border border-[#D8E5D4] bg-[#F4F9F2] p-5">
               <div className="grid gap-3 text-sm font-bold text-[#5F6A62]">
                 <TrustLine
                   icon={<ShieldCheck className="h-4 w-4" />}
-                  title="Your box is reviewed before final confirmation"
-                />
-                <TrustLine
-                  icon={<CheckCircle2 className="h-4 w-4" />}
-                  title="Availability is confirmed before pickup or delivery"
+                  text="Secure checkout before order confirmation"
                 />
                 <TrustLine
                   icon={<Truck className="h-4 w-4" />}
-                  title="Pickup or delivery details are handled clearly at checkout"
+                  text="Pickup and delivery confirmed at checkout"
                 />
               </div>
             </Card>
@@ -222,196 +176,139 @@ export default function MyBoxPage() {
   );
 }
 
-function BoxHero({
-  itemCount,
-  subtotal,
-}: {
-  itemCount: number;
-  subtotal: number;
-}) {
-  return (
-    <section className="relative overflow-hidden rounded-[34px] bg-[#183B28] px-6 py-7 text-white shadow-[0_30px_90px_rgba(24,59,40,0.22)] sm:px-8 lg:px-10">
-      <div className="absolute right-[-100px] top-[-120px] h-72 w-72 rounded-full bg-[#2D6741] opacity-70 blur-3xl" />
-      <div className="absolute bottom-[-120px] left-[-100px] h-72 w-72 rounded-full bg-[#DFA75A] opacity-25 blur-3xl" />
-
-      <div className="relative z-10 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-        <div>
-          <Badge tone="gold">
-            <Sparkles className="h-3 w-3" />
-            Ready to review
-          </Badge>
-
-          <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[0.96] tracking-[-0.055em] sm:text-5xl">
-            Your box is almost ready.
-          </h1>
-
-          <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78 sm:text-base">
-            Review your selected produce before checkout.
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[330px]">
-          <div className="rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#DFA75A]">
-              Items
-            </p>
-            <p className="mt-2 text-4xl font-black">{itemCount}</p>
-          </div>
-
-          <div className="rounded-3xl border border-white/12 bg-white/10 p-5 backdrop-blur">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#DFA75A]">
-              Subtotal
-            </p>
-            <p className="mt-2 text-3xl font-black">{formatJmd(subtotal)}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function CartItemCard({
   line,
-  onUpdate,
+  onMinus,
+  onPlus,
   onRemove,
 }: {
   line: CartLine;
-  onUpdate: (productId: string, quantity: number) => void;
-  onRemove: (productId: string) => void;
+  onMinus: () => void;
+  onPlus: () => void;
+  onRemove: () => void;
 }) {
-  const [src, setSrc] = useState(line.product.image_url || FALLBACK_IMAGE);
-  const unitPrice = effectivePrice(line.product);
-  const productId = String(line.product.id);
+  const product = line.product;
+  const productExtra = product as typeof product & {
+    farm_name?: string | null;
+    farmer_name?: string | null;
+    parish?: string | null;
+    category_name?: string | null;
+    category?: string | null;
+  };
 
-  useEffect(() => {
-    setSrc(line.product.image_url || FALLBACK_IMAGE);
-  }, [line.product.image_url]);
-
-  function decreaseQuantity() {
-    const nextQuantity = Math.max(1, line.quantity - 1);
-    onUpdate(productId, nextQuantity);
-  }
-
-  function increaseQuantity() {
-    onUpdate(productId, line.quantity + 1);
-  }
+  const price = Number(effectivePrice(product) || 0);
+  const lineTotal = price * Number(line.quantity || 0);
+  const imageUrl = product.image_url || FALLBACK_IMAGE;
+  const categoryLabel = productExtra.category_name || productExtra.category || 'Fresh produce';
 
   return (
-    <Card className="grid gap-4 rounded-[28px] border border-[#D8E5D4] bg-white p-4 shadow-[0_18px_50px_rgba(24,59,40,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_rgba(24,59,40,0.10)] sm:grid-cols-[132px_1fr_auto] sm:items-center">
-      <Link
-        href={`/product/${productId}`}
-        className="relative h-36 overflow-hidden rounded-[1.35rem] bg-[#EAF5E7] sm:h-32"
-      >
-        <Image
-          src={src}
-          alt={line.product.name}
-          fill
-          className="object-cover"
-          sizes="160px"
-          onError={() => setSrc(FALLBACK_IMAGE)}
-        />
-      </Link>
-
-      <div>
-        <div className="flex flex-wrap gap-2">
-          <Badge tone="green">{line.product.category || 'Fresh produce'}</Badge>
-          {line.product.is_local ? <Badge tone="gold">Local</Badge> : null}
+    <Card className="rounded-[1.75rem] border border-[#D8E5D4] bg-white p-4 shadow-[0_14px_40px_rgba(24,59,40,0.05)] sm:p-5">
+      <div className="grid gap-4 lg:grid-cols-[160px_minmax(0,1fr)_160px] lg:items-center">
+        <div className="relative h-40 overflow-hidden rounded-3xl border border-[#D8E5D4] bg-[#F4F9F2] lg:h-36">
+          <Image
+            src={imageUrl}
+            alt={product.name}
+            fill
+            className="object-contain p-4"
+            sizes="160px"
+          />
         </div>
 
-        <Link
-          href={`/product/${productId}`}
-          className="mt-2 block text-xl font-black text-[#183B28] transition hover:text-[#2D6741]"
-        >
-          {line.product.name}
-        </Link>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="green">{categoryLabel}</Badge>
+            {product.is_local ? <Badge tone="green">Local</Badge> : null}
+            {product.is_organic ? <Badge tone="gold">Organic</Badge> : null}
+          </div>
 
-        <p className="mt-1 text-sm font-bold text-[#5F6A62]">
-          {formatJmd(unitPrice)} / {line.product.unit || 'each'}
-        </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto] md:items-start">
+            <div>
+              <h3 className="text-2xl font-black leading-tight text-[#183B28]">
+                {product.name}
+              </h3>
 
-        <Link
-          href={`/product/${productId}`}
-          className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#EAF5E7] px-3 py-1 text-xs font-black text-[#2D6741] transition hover:bg-[#D8E5D4]"
-        >
-          View item
-          <ArrowRight className="h-3 w-3" />
-        </Link>
+              <p className="mt-1 text-sm font-semibold leading-5 text-[#5F6A62]">
+                {productExtra.farm_name || productExtra.farmer_name || 'The Harvest Place Ja'}
+                {productExtra.parish ? ` • ${productExtra.parish}` : ''}
+              </p>
 
-        <p className="mt-2 inline-flex rounded-full bg-[#FFF3D9] px-3 py-1 text-xs font-black text-[#8B5D18]">
-          {line.product.stock_quantity ?? 'Available'} available
-        </p>
-      </div>
+              <p className="mt-2 text-sm font-black text-[#2D6741]">
+                {formatJmd(price)} {product.unit ? `/ ${product.unit}` : ''}
+              </p>
 
-      <div className="flex flex-wrap items-center gap-3 sm:flex-col sm:items-end">
-        <div className="flex items-center gap-2 rounded-full border border-[#D8E5D4] bg-white p-1">
-          <button
-            type="button"
-            aria-label={`Decrease ${line.product.name}`}
-            onClick={decreaseQuantity}
-            className="rounded-full p-2 text-[#2D6741] transition hover:bg-[#EAF5E7]"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
+              <p className="mt-1 text-xs font-bold text-[#5F6A62]">
+                {Number(product.stock_quantity || 0) > 0
+                  ? `${product.stock_quantity} available`
+                  : 'Availability will be confirmed'}
+              </p>
+            </div>
 
-          <span className="min-w-8 text-center text-sm font-black">
-            {line.quantity}
-          </span>
+            <div className="flex flex-wrap items-center gap-3 md:justify-end">
+              <div className="inline-flex items-center overflow-hidden rounded-full border border-[#D8E5D4] bg-white">
+                <button
+                  type="button"
+                  onClick={onMinus}
+                  className="grid h-11 w-11 place-items-center text-[#183B28] transition hover:bg-[#EAF5E7]"
+                  aria-label="Decrease quantity"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
 
-          <button
-            type="button"
-            aria-label={`Increase ${line.product.name}`}
-            onClick={increaseQuantity}
-            className="rounded-full p-2 text-[#2D6741] transition hover:bg-[#EAF5E7]"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+                <span className="min-w-12 px-4 text-center text-sm font-black text-[#183B28]">
+                  {line.quantity}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={onPlus}
+                  className="grid h-11 w-11 place-items-center text-[#183B28] transition hover:bg-[#EAF5E7]"
+                  aria-label="Increase quantity"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={onRemove}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full text-red-700 transition hover:bg-red-50"
+                aria-label="Remove item"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <p className="text-lg font-black text-[#183B28]">
-          {formatJmd(unitPrice * line.quantity)}
-        </p>
-
-        <button
-          type="button"
-          onClick={() => onRemove(productId)}
-          aria-label={`Remove ${line.product.name}`}
-          className="rounded-full p-2 text-red-700 transition hover:bg-red-50"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="rounded-3xl border border-[#D8E5D4] bg-[#F4F9F2] px-5 py-4 text-left lg:text-right">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6A62]">
+            Item total
+          </p>
+          <p className="mt-1 text-2xl font-black text-[#183B28]">
+            {formatJmd(lineTotal)}
+          </p>
+        </div>
       </div>
     </Card>
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
+function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex items-center justify-between gap-4">
       <span>{label}</span>
-      <span>{value}</span>
+      <span className="font-black text-[#183B28]">{value}</span>
     </div>
   );
 }
 
-function TrustLine({
-  icon,
-  title,
-}: {
-  icon: ReactNode;
-  title: string;
-}) {
+function TrustLine({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-[#EAF5E7] text-[#2D6741]">
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-[#2D6741]">
         {icon}
       </span>
-      <span>{title}</span>
+      <span>{text}</span>
     </div>
   );
 }

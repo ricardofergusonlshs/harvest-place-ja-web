@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { productImageStorageBucket } from '@/lib/config';
@@ -926,44 +926,34 @@ export async function requireAdminAccess() {
   if (!allowed) throw new Error('Admin permission required.');
 }
 
-export async function adminUpdateProduct(productId: string, payload: Partial<Product> & { admin_note?: string }) {
-  await requireAdminAccess();
+export async function adminUpdateProduct(
+  productId: string,
+  payload: Record<string, unknown>
+) {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc('admin_update_product', {
-    p_product_id: productId,
-    p_name: payload.name ?? null,
-    p_description: payload.description ?? null,
-    p_price: payload.price ?? null,
-    p_unit: payload.unit ?? null,
-    p_image_url: payload.image_url ?? null,
-    p_is_available: payload.is_available ?? null,
-    p_stock_quantity: payload.stock_quantity ?? null,
-    p_approval_status: payload.approval_status ?? null,
-    p_admin_note: payload.admin_note ?? 'Updated from web admin dashboard',
-    p_category: payload.category ?? null,
-    p_is_organic: payload.is_organic ?? null,
-    p_is_local: payload.is_local ?? null,
-    p_harvest_date: payload.harvest_date ?? null,
-    p_original_price: payload.original_price ?? null,
-    p_discount_price: payload.discount_price ?? null,
-    p_discount_percent: payload.discount_percent ?? null,
-    p_discount_label: payload.discount_label ?? null,
-    p_discount_starts_at: payload.discount_starts_at ?? null,
-    p_discount_ends_at: payload.discount_ends_at ?? null,
-    p_is_discount_active: payload.is_discount_active ?? null,
-    p_product_status: payload.product_status ?? null,
-    p_ready_soon: payload.ready_soon ?? null,
-    p_estimated_ready_date: payload.estimated_ready_date ?? null,
-    p_expected_stock_quantity: payload.expected_stock_quantity ?? null,
-    p_is_deal_of_day: payload.is_deal_of_day ?? null,
-    p_deal_rank: payload.deal_rank ?? null,
-    p_subscribe_save_enabled: payload.subscribe_save_enabled ?? null,
-    p_subscribe_save_discount_percent: payload.subscribe_save_discount_percent ?? null
-  });
-  if (error) throw error;
+
+  const cleanPayload = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined)
+  );
+
+  delete cleanPayload.id;
+  delete cleanPayload.created_at;
+  delete cleanPayload.updated_at;
+  delete cleanPayload.admin_note;
+
+  const { data, error } = await supabase
+    .from('products')
+    .update(cleanPayload)
+    .eq('id', productId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message || 'Product could not be updated.');
+  }
+
   return data;
 }
-
 export async function createProduct(payload: Partial<Product>) {
   await requireAdminAccess();
   const supabase = getSupabaseBrowserClient();
@@ -1221,3 +1211,5 @@ export async function fetchFarmerPayouts(farmerId?: string) {
   if (error) return [];
   return rows<FarmerPayout>(data);
 }
+
+

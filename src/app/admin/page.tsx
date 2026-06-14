@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
@@ -108,7 +108,41 @@ const tabs: Array<{ key: Tab; label: string }> = [
 ];
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === 'string') return error;
+
+  if (error && typeof error === 'object') {
+    const record = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+      error_description?: unknown;
+      statusText?: unknown;
+    };
+
+    const parts = [
+      record.message,
+      record.error_description,
+      record.details,
+      record.hint,
+      record.code ? `Code: ${String(record.code)}` : null,
+      record.statusText,
+    ]
+      .map((item) => String(item ?? '').trim())
+      .filter(Boolean);
+
+    if (parts.length) return parts.join(' • ');
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
+  return 'Something went wrong. Please try again.';
 }
 
 function cleanText(value: unknown, fallback = 'Not available') {
@@ -117,13 +151,13 @@ function cleanText(value: unknown, fallback = 'Not available') {
   if (!text) return fallback;
 
   return text
-    .replaceAll('â€¢', '•')
-    .replaceAll('â˜…', '★')
-    .replaceAll('â€™', '’')
-    .replaceAll('â€œ', '“')
-    .replaceAll('â€', '”')
-    .replaceAll('â€“', '–')
-    .replaceAll('â€”', '—')
+    .replaceAll('Ã¢â‚¬Â¢', 'â€¢')
+    .replaceAll('Ã¢Ëœâ€¦', 'â˜…')
+    .replaceAll('Ã¢â‚¬â„¢', 'â€™')
+    .replaceAll('Ã¢â‚¬Å“', 'â€œ')
+    .replaceAll('Ã¢â‚¬Â', 'â€')
+    .replaceAll('Ã¢â‚¬â€œ', 'â€“')
+    .replaceAll('Ã¢â‚¬â€', 'â€”')
     .replace(/\s+/g, ' ');
 }
 
@@ -182,6 +216,20 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
 
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      event.preventDefault();
+      console.error('Admin action failed:', event.reason);
+      setNotice(errorMessage(event.reason));
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
   async function refresh() {
     setLoading(true);
     setNotice('');
@@ -224,7 +272,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!authLoading && user && isAdmin) {
-      refresh();
+      void refresh();
       return;
     }
 
@@ -485,7 +533,6 @@ function ProductsAdmin({ products, refresh }: { products: Product[]; refresh: ()
         is_discount_active: isDeal,
         discount_label: isDeal ? 'Deal of the day' : null,
         ready_soon: readySoon,
-        admin_note: 'Product created from upgraded web admin dashboard',
       };
 
       await createProduct(payload);
@@ -721,7 +768,6 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
     await updateProduct({
       is_available: !item.is_available,
       product_status: item.is_available ? 'hidden' : stock > 0 ? 'available' : 'out_of_stock',
-      admin_note: 'Availability toggled from upgraded web admin',
     });
   }
 
@@ -730,21 +776,18 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
       is_deal_of_day: !isDeal,
       is_discount_active: !isDeal,
       discount_label: !isDeal ? 'Deal of the day' : null,
-      admin_note: 'Deal badge toggled from upgraded web admin',
     });
   }
 
   async function toggleOrganic() {
     await updateProduct({
       is_organic: !isOrganic,
-      admin_note: 'Organic badge toggled from upgraded web admin',
     });
   }
 
   async function toggleLocal() {
     await updateProduct({
       is_local: !isLocal,
-      admin_note: 'Local badge toggled from upgraded web admin',
     });
   }
 
@@ -753,7 +796,6 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
       ready_soon: !isReadySoon,
       product_status: !isReadySoon ? 'ready_soon' : stock > 0 ? 'available' : 'out_of_stock',
       is_available: !isReadySoon ? false : stock > 0,
-      admin_note: 'Ready soon status toggled from upgraded web admin',
     });
   }
 
@@ -762,7 +804,6 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
       approval_status: 'approved',
       is_available: stock > 0 && !isReadySoon,
       product_status: isReadySoon ? 'ready_soon' : stock > 0 ? 'available' : 'out_of_stock',
-      admin_note: 'Product approved from upgraded web admin',
     });
   }
 
@@ -771,7 +812,6 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
       approval_status: 'rejected',
       is_available: false,
       product_status: 'hidden',
-      admin_note: 'Product rejected from upgraded web admin',
     });
   }
 
@@ -781,7 +821,6 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
       is_available: false,
       ready_soon: false,
       product_status: 'out_of_stock',
-      admin_note: 'Product marked out of stock from upgraded web admin',
     });
   }
 
@@ -798,7 +837,7 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
           </div>
 
           <p className="mt-1 text-sm font-bold text-farm-muted">
-            {cleanText(item.category, 'Uncategorised')} • {formatJmd(item.price)} • Stock {stock}
+            {cleanText(item.category, 'Uncategorised')} â€¢ {formatJmd(item.price)} â€¢ Stock {stock}
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -843,9 +882,6 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
           <ProductActionButton onClick={rejectProduct} active={isRejected}>
             Reject
           </ProductActionButton>
-          <ProductActionButton disabled title="Add an is_featured column or tags array to enable this action.">
-            Featured TODO
-          </ProductActionButton>
         </div>
       </div>
     </article>
@@ -868,7 +904,7 @@ function OrdersAdmin({ orders, refresh }: { orders: FarmOrder[]; refresh: () => 
                 {formatJmd(order.total || 0)}
               </h3>
               <p className="mt-1 text-sm font-bold text-farm-muted">
-                {formatDateTime(order.created_at)} • {cleanText(order.fulfillment_type, 'Fulfillment not set')}
+                {formatDateTime(order.created_at)} â€¢ {cleanText(order.fulfillment_type, 'Fulfillment not set')}
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -983,7 +1019,7 @@ function CouponsAdmin({ coupons, refresh }: { coupons: Coupon[]; refresh: () => 
               <div>
                 <p className="font-black text-farm-primaryDark">{cleanText(coupon.code, 'Coupon')}</p>
                 <p className="text-sm font-bold text-farm-muted">
-                  {cleanText(coupon.discount_type)} • {coupon.discount_value} • min {formatJmd(coupon.minimum_order || 0)}
+                  {cleanText(coupon.discount_type)} â€¢ {coupon.discount_value} â€¢ min {formatJmd(coupon.minimum_order || 0)}
                 </p>
               </div>
               <StatusChip status={coupon.is_active ? 'active' : 'inactive'} />
@@ -1016,7 +1052,7 @@ function SupportAdmin({ tickets, refresh }: { tickets: SupportTicket[]; refresh:
                   </div>
 
                   <p className="mt-1 text-sm font-bold text-farm-muted">
-                    Platform-only conversation • {formatDateTime(ticket.created_at)}
+                    Platform-only conversation â€¢ {formatDateTime(ticket.created_at)}
                   </p>
 
                   <p className="mt-3 text-sm leading-6 text-farm-muted">{cleanText(ticket.message, 'No message')}</p>
@@ -1079,7 +1115,7 @@ function FarmersAdmin({
             <Card key={farmer.id}>
               <p className="font-black text-farm-primaryDark">{cleanText(farmer.farm_name, 'Farm')}</p>
               <p className="text-sm font-bold text-farm-muted">
-                {cleanText(farmer.farmer_name, 'Farmer')} • {cleanText(farmer.parish, 'Parish')} • Platform contact only
+                {cleanText(farmer.farmer_name, 'Farmer')} â€¢ {cleanText(farmer.parish, 'Parish')} â€¢ Platform contact only
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1118,7 +1154,7 @@ function FarmersAdmin({
             <Card key={payout.id}>
               <p className="font-black text-farm-primaryDark">{formatJmd(payout.net_amount)}</p>
               <p className="text-sm font-bold text-farm-muted">
-                Order #{shortIdLabel(payout.order_id)} • Commission {formatJmd(payout.commission_amount)}
+                Order #{shortIdLabel(payout.order_id)} â€¢ Commission {formatJmd(payout.commission_amount)}
               </p>
               <div className="mt-2">
                 <StatusChip status={payout.payout_status} />
@@ -1136,10 +1172,7 @@ function FarmersAdmin({
 function ReviewsAdmin({ reviews }: { reviews: ProductReview[] }) {
   return (
     <div className="grid gap-4">
-      <SectionMiniHeader
-        title="Product reviews"
-        subtitle={`${reviews.length} customer reviews`}
-      />
+      <SectionMiniHeader title="Product reviews" subtitle={`${reviews.length} customer reviews`} />
 
       {reviews.length ? (
         reviews.map((review) => {
@@ -1150,10 +1183,7 @@ function ReviewsAdmin({ reviews }: { reviews: ProductReview[] }) {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="font-black text-farm-primaryDark">
-                    {cleanText(
-                      review.product_name || review.products?.name,
-                      'Product'
-                    )}
+                    {cleanText(review.product_name || review.products?.name, 'Product')}
                   </p>
 
                   <p className="mt-1 text-sm font-black text-[#DFA75A]">
@@ -1173,10 +1203,7 @@ function ReviewsAdmin({ reviews }: { reviews: ProductReview[] }) {
           );
         })
       ) : (
-        <EmptyState
-          title="No reviews yet"
-          subtitle="Customer product reviews will appear here."
-        />
+        <EmptyState title="No reviews yet" subtitle="Customer product reviews will appear here." />
       )}
     </div>
   );
@@ -1194,7 +1221,7 @@ function AuditAdmin({ audit }: { audit: AuditLogEntry[] }) {
               {cleanText(entry.action, 'Audit event')} on {cleanText(entry.table_name, 'table')}
             </p>
             <p className="mt-1 text-sm font-bold text-farm-muted">
-              {formatDateTime(entry.created_at)} • {cleanText(entry.admin_email, 'System')}
+              {formatDateTime(entry.created_at)} â€¢ {cleanText(entry.admin_email, 'System')}
             </p>
           </Card>
         ))
@@ -1375,3 +1402,6 @@ function Input({
     </label>
   );
 }
+
+
+
