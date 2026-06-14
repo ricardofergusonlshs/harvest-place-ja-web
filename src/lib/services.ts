@@ -1021,13 +1021,19 @@ export async function uploadProductImage(file: File, folder = 'products', adminO
 export async function fetchAdminOrders() {
   const allowed = await isCurrentUserAdminFromDatabase();
   if (!allowed) return [];
+
   const supabase = getSupabaseBrowserClient();
+
   const { data, error } = await supabase
     .from('orders')
-    .select('id, order_status, status, fulfillment_type, subtotal, delivery_fee, discount_amount, total, payment_status, payment_method, bank_reference, delivery_status, delivery_address, delivery_zone, scheduled_date, scheduled_time, notes, created_at, customers(full_name, phone, address), order_items(product_name, quantity, line_total)')
+    .select(
+      'id, customer_id, order_status, fulfillment_type, subtotal, delivery_fee, discount_amount, total, payment_status, payment_method, bank_reference, delivery_status, delivery_address, delivery_zone, scheduled_date, scheduled_time, notes, created_at, customers(full_name, phone, email, address), order_items(product_name, quantity, line_total)'
+    )
     .order('created_at', { ascending: false })
-    .limit(80);
+    .limit(150);
+
   if (error) return [];
+
   return rows<FarmOrder>(data);
 }
 
@@ -1211,5 +1217,7 @@ export async function fetchFarmerPayouts(farmerId?: string) {
   if (error) return [];
   return rows<FarmerPayout>(data);
 }
+
+
 
 

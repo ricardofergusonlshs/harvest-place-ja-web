@@ -1,296 +1,359 @@
-'use client';
+﻿'use client';
 
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Loader2, MessageCircle, RefreshCw, Send } from 'lucide-react';
+import {
+  Inbox,
+  Loader2,
+  MessageCircle,
+  RefreshCcw,
+  Send,
+  User,
+} from 'lucide-react';
+
 import { useAuth } from '@/components/providers/auth-provider';
 import {
-  fetchAdminChatMessages,
+  cleanOrderError,
   fetchAdminChatThreads,
-  sendAdminChatMessage,
-  subscribeToAdminChatChanges,
-  updateAdminChatStatus,
-  type ChatThreadStatus,
+  fetchThreadMessages,
+  sendChatMessage,
   type SupportChatMessage,
   type SupportChatThread,
-} from '@/lib/live-chat';
+} from '@/lib/order-chat-services';
 
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(' ');
-}
-
-function formatDate(value: string) {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
-function statusClass(status: ChatThreadStatus) {
-  if (status === 'open') return 'bg-[#EAF5E7] text-[#2D6741]';
-  if (status === 'waiting') return 'bg-[#FFF3D9] text-[#A66A16]';
-  if (status === 'resolved') return 'bg-[#EDF7FF] text-[#175CD3]';
-  return 'bg-slate-100 text-slate-600';
-}
+const REFRESH_MS = 4000;
 
 export default function AdminChatPage() {
-  const { user, isAdmin } = useAuth();
+  const auth = useAuth() as {
+    user: { id: string; email?: string | null } | null;
+    isAdmin?: boolean;
+    loading: boolean;
+  };
+
   const [threads, setThreads] = useState<SupportChatThread[]>([]);
-  const [selectedId, setSelectedId] = useState<string>('');
+  const [selectedThreadId, setSelectedThreadId] = useState('');
   const [messages, setMessages] = useState<SupportChatMessage[]>([]);
-  const [reply, setReply] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [loadingThreads, setLoadingThreads] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
-  const selectedThread = useMemo(() => threads.find((thread) => thread.id === selectedId) || null, [threads, selectedId]);
+  const selectedThread = useMemo(
+    () => threads.find((thread) => thread.id === selectedThreadId) || null,
+    [threads, selectedThreadId],
+  );
 
-  async function loadThreads(keepSelected = true) {
-    setError('');
+  const loadThreads = useCallback(async () => {
     try {
-      const loaded = await fetchAdminChatThreads();
-      setThreads(loaded);
-      if (!keepSelected || !selectedId) setSelectedId(loaded[0]?.id || '');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load live chats.');
-    } finally {
-      setLoading(false);
-    }
-  }
+      setNotice('');
+      const rows = await fetchAdminChatThreads(50);
+      setThreads(rows);
 
-  async function loadMessages(threadId: string) {
-    if (!threadId) {
+      if (!selectedThreadId && rows.length) {
+        setSelectedThreadId(rows[0].id);
+      }
+    } catch (error) {
+      setNotice(cleanOrderError(error));
+    } finally {
+      setLoadingThreads(false);
+    }
+  }, [selectedThreadId]);
+
+  const loadMessages = useCallback(async () => {
+    if (!selectedThreadId) {
       setMessages([]);
       return;
     }
-    setMessagesLoading(true);
-    setError('');
+
     try {
-      const loaded = await fetchAdminChatMessages(threadId);
-      setMessages(loaded);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load messages.');
+      setLoadingMessages(true);
+      const rows = await fetchThreadMessages(selectedThreadId);
+      setMessages(rows);
+    } catch (error) {
+      setNotice(cleanOrderError(error));
     } finally {
-      setMessagesLoading(false);
+      setLoadingMessages(false);
     }
-  }
+  }, [selectedThreadId]);
 
   useEffect(() => {
-    if (!isAdmin) return;
-    loadThreads(false);
-    const cleanup = subscribeToAdminChatChanges(() => loadThreads(true), setError);
-    return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+    if (auth.loading) return;
+
+    void loadThreads();
+
+    const timer = window.setInterval(() => {
+      void loadThreads();
+    }, REFRESH_MS);
+
+    return () => window.clearInterval(timer);
+  }, [auth.loading, loadThreads]);
 
   useEffect(() => {
-    if (!selectedId || !isAdmin) return;
-    loadMessages(selectedId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, isAdmin]);
+    void loadMessages();
 
-  async function handleReply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedThread || sending || !reply.trim()) return;
+    const timer = window.setInterval(() => {
+      void loadMessages();
+    }, REFRESH_MS);
 
-    setSending(true);
-    setError('');
+    return () => window.clearInterval(timer);
+  }, [loadMessages]);
+
+  async function handleSend() {
+    if (!selectedThreadId || !messageText.trim()) return;
+
     try {
-      const sent = await sendAdminChatMessage(selectedThread.id, reply);
-      setMessages((current) => (current.some((item) => item.id === sent.id) ? current : [...current, sent]));
-      setReply('');
-      await loadThreads(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Reply could not be sent.');
+      setSending(true);
+      setNotice('');
+
+      await sendChatMessage({
+        threadId: selectedThreadId,
+        senderId: auth.user?.id || null,
+        senderRole: 'admin',
+        body: messageText,
+      });
+
+      setMessageText('');
+      await loadMessages();
+      await loadThreads();
+    } catch (error) {
+      setNotice(cleanOrderError(error));
     } finally {
       setSending(false);
     }
   }
 
-  async function handleStatus(status: ChatThreadStatus) {
-    if (!selectedThread) return;
-    try {
-      await updateAdminChatStatus(selectedThread.id, status);
-      await loadThreads(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Status could not be updated.');
-    }
-  }
-
-  if (!user) {
+  if (auth.loading) {
     return (
-      <main className="min-h-screen bg-[#FAF8F0] px-4 py-12 text-[#183B28]">
-        <div className="mx-auto max-w-xl rounded-[28px] border border-[#D8E5D4] bg-[#FFFDF7] p-8 text-center shadow-sm">
-          <h1 className="font-serif text-3xl font-black">Admin chat</h1>
-          <p className="mt-3 text-[#5F6A62]">Please sign in as an admin to view customer chats.</p>
-          <Link href="/auth" className="mt-6 inline-flex rounded-full bg-[#183B28] px-6 py-3 text-sm font-black text-white">Sign in</Link>
+      <main className="min-h-screen bg-[#FAF8F0] px-4 py-10 text-[#183B28]">
+        <div className="mx-auto max-w-6xl rounded-[2rem] bg-white p-8 shadow-sm">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <p className="mt-3 font-black">Loading admin inbox...</p>
         </div>
       </main>
     );
   }
 
-  if (!isAdmin) {
+  if (!auth.user || !auth.isAdmin) {
     return (
-      <main className="min-h-screen bg-[#FAF8F0] px-4 py-12 text-[#183B28]">
-        <div className="mx-auto max-w-xl rounded-[28px] border border-[#D8E5D4] bg-[#FFFDF7] p-8 text-center shadow-sm">
-          <h1 className="font-serif text-3xl font-black">Admin access required</h1>
-          <p className="mt-3 text-[#5F6A62]">This live chat inbox is only available to admin users.</p>
-          <Link href="/" className="mt-6 inline-flex rounded-full bg-[#183B28] px-6 py-3 text-sm font-black text-white">Go home</Link>
+      <main className="min-h-screen bg-[#FAF8F0] px-4 py-10 text-[#183B28]">
+        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-8 text-center shadow-sm">
+          <Inbox className="mx-auto h-10 w-10 text-[#2D6741]" />
+          <h1 className="mt-4 text-3xl font-black">Admin inbox</h1>
+          <p className="mt-2 text-sm font-semibold text-[#5F6A62]">
+            Please sign in with an admin account to view customer conversations.
+          </p>
+          <Link
+            href="/auth?redirect=/admin/chat"
+            className="mt-6 inline-flex rounded-full bg-[#2D6741] px-6 py-3 text-sm font-black text-white"
+          >
+            Sign in
+          </Link>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#FAF8F0] px-4 py-8 text-[#183B28] sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-[1450px]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <Link href="/admin" className="inline-flex items-center gap-2 text-sm font-black text-[#2D6741]">
-              <ArrowLeft className="h-4 w-4" />
-              Back to admin
-            </Link>
-            <p className="mt-5 text-xs font-black uppercase tracking-[0.28em] text-[#DFA75A]">Customer support</p>
-            <h1 className="mt-2 font-serif text-4xl font-black tracking-[-0.04em] text-[#183B28] sm:text-5xl">Live chat inbox</h1>
-            <p className="mt-3 max-w-2xl text-[#5F6A62]">Respond to customers from the website and Android app support flow.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => loadThreads(true)}
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#D8E5D4] bg-white px-5 text-sm font-black text-[#183B28] shadow-sm transition hover:bg-[#EAF5E7]"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
-        </div>
-
-        {error ? <p className="mt-5 rounded-2xl border border-[#F3D3D3] bg-[#FFF2F2] px-4 py-3 text-sm font-bold text-[#B42318]">{error}</p> : null}
-
-        <section className="mt-8 grid min-h-[680px] overflow-hidden rounded-[34px] border border-[#D8E5D4] bg-[#FFFDF7] shadow-[0_18px_50px_rgba(24,59,40,0.08)] lg:grid-cols-[390px_1fr]">
-          <aside className="border-b border-[#D8E5D4] bg-white/60 lg:border-b-0 lg:border-r">
-            <div className="border-b border-[#D8E5D4] px-5 py-4">
-              <p className="text-sm font-black text-[#183B28]">Conversations</p>
-              <p className="mt-1 text-xs font-semibold text-[#5F6A62]">{threads.length} chat thread{threads.length === 1 ? '' : 's'}</p>
+    <main className="min-h-screen bg-[#FAF8F0] px-4 py-6 text-[#183B28] sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-[1450px]">
+        <div className="mb-5 rounded-[2rem] bg-[#183B28] p-6 text-white shadow-[0_20px_65px_rgba(24,59,40,0.16)]">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#DFA75A]">
+                Admin inbox
+              </p>
+              <h1 className="mt-2 text-4xl font-black">Customer Messages</h1>
+              <p className="mt-2 max-w-2xl text-sm font-semibold text-white/75">
+                See customer conversations, order questions, delivery updates, and support messages in one place.
+              </p>
             </div>
 
-            <div className="max-h-[620px] overflow-y-auto p-3">
-              {loading ? (
-                <div className="grid h-40 place-items-center text-[#5F6A62]"><Loader2 className="h-6 w-6 animate-spin" /></div>
-              ) : threads.length ? (
-                threads.map((thread) => (
-                  <button
-                    key={thread.id}
-                    type="button"
-                    onClick={() => setSelectedId(thread.id)}
-                    className={cx(
-                      'mb-2 w-full rounded-[22px] border p-4 text-left transition',
-                      selectedId === thread.id ? 'border-[#2D6741] bg-[#EAF5E7]' : 'border-[#D8E5D4] bg-white hover:bg-[#FAF8F0]'
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-[#183B28]">{thread.customer_name || thread.customer_email || 'Customer'}</p>
-                        <p className="mt-1 truncate text-xs font-semibold text-[#5F6A62]">{thread.last_message || 'New conversation'}</p>
-                      </div>
-                      <span className={cx('shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em]', statusClass(thread.status))}>{thread.status}</span>
-                    </div>
-                    <p className="mt-2 text-[11px] font-bold text-[#5F6A62]/70">{formatDate(thread.last_message_at)}</p>
-                  </button>
-                ))
-              ) : (
-                <div className="rounded-[24px] border border-dashed border-[#D8E5D4] bg-white p-8 text-center">
-                  <MessageCircle className="mx-auto h-8 w-8 text-[#2D6741]" />
-                  <p className="mt-3 font-black">No chats yet</p>
-                  <p className="mt-2 text-sm text-[#5F6A62]">Customer messages will appear here.</p>
+            <button
+              type="button"
+              onClick={() => {
+                void loadThreads();
+                void loadMessages();
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-[#183B28]"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {notice ? (
+          <div className="mb-4 rounded-3xl border border-[#F2C772] bg-[#FFF4D8] px-5 py-4 text-sm font-black text-[#8A5A00]">
+            {notice}
+          </div>
+        ) : null}
+
+        <div className="grid min-h-[680px] overflow-hidden rounded-[2rem] border border-[#D8E5D4] bg-white shadow-[0_20px_65px_rgba(24,59,40,0.08)] lg:grid-cols-[390px_minmax(0,1fr)]">
+          <aside className="border-b border-[#D8E5D4] bg-[#F4F9F2] lg:border-b-0 lg:border-r">
+            <div className="border-b border-[#D8E5D4] p-5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-black">Threads</h2>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#2D6741]">
+                  {threads.length}
+                </span>
+              </div>
+            </div>
+
+            <div className="max-h-[590px] overflow-y-auto p-3">
+              {loadingThreads ? (
+                <div className="rounded-3xl bg-white p-5 text-sm font-black text-[#5F6A62]">
+                  Loading conversations...
                 </div>
-              )}
+              ) : null}
+
+              {!loadingThreads && !threads.length ? (
+                <div className="rounded-3xl bg-white p-5 text-sm font-black text-[#5F6A62]">
+                  No customer conversations yet.
+                </div>
+              ) : null}
+
+              {threads.map((thread) => {
+                const active = thread.id === selectedThreadId;
+
+                return (
+                  <button
+                    type="button"
+                    key={thread.id}
+                    onClick={() => setSelectedThreadId(thread.id)}
+                    className={[
+                      'mb-2 w-full rounded-3xl border p-4 text-left transition',
+                      active
+                        ? 'border-[#2D6741] bg-white shadow-sm'
+                        : 'border-transparent bg-white/70 hover:bg-white',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#EAF5E7] text-[#2D6741]">
+                        <User className="h-5 w-5" />
+                      </span>
+
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-black">
+                          {thread.customer_name || thread.customer_email || 'Customer'}
+                        </span>
+                        <span className="mt-1 block truncate text-xs font-bold text-[#5F6A62]">
+                          {thread.subject || 'Support chat'}
+                        </span>
+                        <span className="mt-2 block truncate text-xs font-semibold text-[#5F6A62]">
+                          {thread.last_message || 'No messages yet'}
+                        </span>
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </aside>
 
-          <div className="flex min-h-[680px] flex-col">
-            {selectedThread ? (
-              <>
-                <div className="flex flex-col gap-3 border-b border-[#D8E5D4] bg-[#FFFDF7] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <section className="flex min-h-[680px] flex-col">
+            <div className="border-b border-[#D8E5D4] p-5">
+              {selectedThread ? (
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="font-serif text-2xl font-black text-[#183B28]">{selectedThread.customer_name || 'Customer'}</p>
-                    <p className="text-sm font-semibold text-[#5F6A62]">{selectedThread.customer_email || selectedThread.customer_id}</p>
+                    <h2 className="text-2xl font-black">
+                      {selectedThread.customer_name || selectedThread.customer_email || 'Customer'}
+                    </h2>
+                    <p className="mt-1 text-sm font-semibold text-[#5F6A62]">
+                      {selectedThread.customer_email || 'No email'}{' '}
+                      {selectedThread.order_id ? `• Order #HPJ-${selectedThread.order_id.slice(0, 6).toUpperCase()}` : ''}
+                    </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(['open', 'waiting', 'resolved', 'closed'] as ChatThreadStatus[]).map((status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        onClick={() => handleStatus(status)}
-                        className={cx('rounded-full px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition', selectedThread.status === status ? 'bg-[#183B28] text-white' : 'border border-[#D8E5D4] bg-white text-[#5F6A62] hover:bg-[#EAF5E7]')}
-                      >
-                        {status}
-                      </button>
-                    ))}
+
+                  {selectedThread.order_id ? (
+                    <Link
+                      href={`/orders/${selectedThread.order_id}`}
+                      className="rounded-full border border-[#D8E5D4] px-4 py-2 text-sm font-black text-[#183B28] hover:bg-[#F4F9F2]"
+                    >
+                      View order
+                    </Link>
+                  ) : null}
+                </div>
+              ) : (
+                <h2 className="text-2xl font-black">Select a conversation</h2>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-[#FFFEFC] p-5">
+              {loadingMessages ? (
+                <div className="flex items-center gap-2 text-sm font-black text-[#5F6A62]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading messages...
+                </div>
+              ) : null}
+
+              {!selectedThread ? (
+                <div className="grid h-full place-items-center text-center">
+                  <div>
+                    <MessageCircle className="mx-auto h-12 w-12 text-[#2D6741]" />
+                    <p className="mt-4 text-xl font-black">Choose a customer thread</p>
                   </div>
                 </div>
+              ) : null}
 
-                <div className="flex-1 space-y-3 overflow-y-auto bg-[#FAF8F0] px-5 py-5">
-                  {messagesLoading ? (
-                    <div className="grid h-full place-items-center text-[#5F6A62]"><Loader2 className="h-7 w-7 animate-spin" /></div>
-                  ) : messages.length ? (
-                    messages.map((message) => {
-                      const admin = message.sender_role === 'admin';
-                      return (
-                        <div key={message.id} className={cx('flex', admin ? 'justify-end' : 'justify-start')}>
-                          <div className={cx('max-w-[78%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm', admin ? 'rounded-br-md bg-[#183B28] text-white' : 'rounded-bl-md border border-[#D8E5D4] bg-white text-[#183B28]')}>
-                            <p>{message.body}</p>
-                            <p className={cx('mt-1 text-[10px] font-bold', admin ? 'text-white/55' : 'text-[#5F6A62]/70')}>{message.sender_role} • {formatDate(message.created_at)}</p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="grid h-full place-items-center text-center">
-                      <div>
-                        <CheckCircle2 className="mx-auto h-12 w-12 text-[#2D6741]" />
-                        <p className="mt-4 font-serif text-2xl font-black">No messages yet</p>
+              {selectedThread && !loadingMessages && !messages.length ? (
+                <div className="rounded-3xl border border-dashed border-[#D8E5D4] bg-white p-6 text-center text-sm font-black text-[#5F6A62]">
+                  No messages yet. Send the first reply.
+                </div>
+              ) : null}
+
+              <div className="grid gap-3">
+                {messages.map((message) => {
+                  const admin = message.sender_role === 'admin';
+
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex ${admin ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={[
+                          'max-w-[78%] rounded-3xl px-5 py-3 text-sm font-semibold leading-6',
+                          admin
+                            ? 'bg-[#2D6741] text-white'
+                            : 'border border-[#D8E5D4] bg-white text-[#183B28]',
+                        ].join(' ')}
+                      >
+                        <p>{message.body}</p>
+                        <p className={admin ? 'mt-2 text-[10px] text-white/65' : 'mt-2 text-[10px] text-[#5F6A62]'}>
+                          {message.created_at ? new Date(message.created_at).toLocaleString() : ''}
+                        </p>
                       </div>
                     </div>
-                  )}
-                </div>
-
-                <form onSubmit={handleReply} className="border-t border-[#D8E5D4] bg-[#FFFDF7] p-4">
-                  <div className="flex items-end gap-2 rounded-[24px] border border-[#D8E5D4] bg-white p-2 shadow-sm">
-                    <textarea
-                      value={reply}
-                      onChange={(event) => setReply(event.target.value)}
-                      placeholder="Reply as admin..."
-                      rows={2}
-                      maxLength={1500}
-                      className="max-h-32 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 text-sm font-semibold text-[#183B28] outline-none placeholder:text-[#5F6A62]/55"
-                    />
-                    <button type="submit" disabled={sending || !reply.trim()} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#2D6741] px-5 text-sm font-black text-white transition hover:bg-[#183B28] disabled:cursor-not-allowed disabled:opacity-45">
-                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      Send
-                    </button>
-                  </div>
-                </form>
-              </>
-            ) : (
-              <div className="grid flex-1 place-items-center p-8 text-center">
-                <div>
-                  <MessageCircle className="mx-auto h-12 w-12 text-[#2D6741]" />
-                  <h2 className="mt-4 font-serif text-3xl font-black">Select a chat</h2>
-                  <p className="mt-2 text-[#5F6A62]">Choose a customer conversation from the inbox.</p>
-                </div>
+                  );
+                })}
               </div>
-            )}
-          </div>
-        </section>
-      </div>
+            </div>
+
+            <div className="border-t border-[#D8E5D4] bg-white p-4">
+              <div className="flex gap-3">
+                <textarea
+                  value={messageText}
+                  onChange={(event) => setMessageText(event.target.value)}
+                  placeholder="Type a reply to the customer..."
+                  className="min-h-14 flex-1 resize-none rounded-3xl border border-[#D8E5D4] bg-[#F4F9F2] px-5 py-4 text-sm font-bold outline-none focus:border-[#2D6741]"
+                  disabled={!selectedThread || sending}
+                />
+
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!selectedThread || !messageText.trim() || sending}
+                  className="inline-flex min-w-28 items-center justify-center gap-2 rounded-3xl bg-[#2D6741] px-5 py-3 text-sm font-black text-white transition hover:bg-[#183B28] disabled:opacity-50"
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Send
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
     </main>
   );
 }

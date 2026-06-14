@@ -889,58 +889,214 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
 }
 
 function OrdersAdmin({ orders, refresh }: { orders: FarmOrder[]; refresh: () => Promise<void> }) {
+  const [query, setQuery] = useState('');
+  const [busyOrderId, setBusyOrderId] = useState('');
+
+  const filteredOrders = useMemo(() => {
+    const term = query.trim().toLowerCase();
+
+    if (!term) return orders;
+
+    return orders.filter((order) => adminOrderSearchText(order).includes(term));
+  }, [orders, query]);
+
+  async function runOrderAction(orderId: string, action: () => Promise<void>) {
+    setBusyOrderId(orderId);
+
+    try {
+      await action();
+      await refresh();
+    } catch (error) {
+      alert(errorMessage(error));
+    } finally {
+      setBusyOrderId('');
+    }
+  }
+
   return (
     <div className="grid gap-4">
-      <SectionMiniHeader title="Orders" subtitle={`${orders.length} recent orders`} />
+      <SectionMiniHeader
+        title="Orders"
+        subtitle={`${filteredOrders.length} showing of ${orders.length} recent orders`}
+      />
 
-      {orders.length ? (
-        orders.map((order) => (
-          <Card key={order.id} className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-farm-accent">
-                #{shortIdLabel(order.id)}
-              </p>
-              <h3 className="mt-1 text-2xl font-black tracking-[-0.03em] text-farm-primaryDark">
-                {formatJmd(order.total || 0)}
-              </h3>
-              <p className="mt-1 text-sm font-bold text-farm-muted">
-                {formatDateTime(order.created_at)} â€¢ {cleanText(order.fulfillment_type, 'Fulfillment not set')}
-              </p>
+      <Card className="grid gap-3">
+        <label className="grid gap-2 text-sm font-black text-farm-primaryDark">
+          Search by customer name, email, phone, or receipt number
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Example: Ricardo, gmail, HPJ-CF926C, CF926C, phone number..."
+            className="w-full rounded-2xl border border-farm-border bg-white p-4 font-bold outline-none transition focus:border-farm-primary"
+          />
+        </label>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <StatusChip status={order.order_status || order.status} />
-                <StatusChip status={order.payment_status} />
-                <StatusChip status={order.delivery_status} />
+        {query.trim() ? (
+          <p className="text-xs font-bold text-farm-muted">
+            Searching for: <span className="text-farm-primaryDark">{query.trim()}</span>
+          </p>
+        ) : (
+          <p className="text-xs font-bold text-farm-muted">
+            Tip: Type part of a customer name or the receipt code shown on the order card.
+          </p>
+        )}
+      </Card>
+
+      {filteredOrders.length ? (
+        filteredOrders.map((order) => {
+          const customer = getAdminOrderCustomer(order);
+          const customerName = cleanText(customer?.full_name || customer?.email, 'Customer');
+          const customerEmail = cleanText(customer?.email, 'No email saved');
+          const customerPhone = cleanText(customer?.phone, 'No phone saved');
+          const receipt = `HPJ-${shortIdLabel(order.id)}`;
+          const isBusy = busyOrderId === order.id;
+
+          return (
+            <Card key={order.id} className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-farm-accent">
+                  Receipt #{receipt}
+                </p>
+
+                <h3 className="mt-1 text-2xl font-black tracking-[-0.03em] text-farm-primaryDark">
+                  {customerName}
+                </h3>
+
+                <p className="mt-1 text-sm font-bold text-farm-muted">
+                  {customerEmail} • {customerPhone}
+                </p>
+
+                <p className="mt-2 text-sm font-bold text-farm-muted">
+                  {formatDateTime(order.created_at)} • {cleanText(order.fulfillment_type, 'Fulfillment not set')} • {formatJmd(order.total || 0)}
+                </p>
+
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <div className="rounded-2xl border border-farm-border bg-farm-primarySoft/40 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-farm-primary">
+                      Payment
+                    </p>
+                    <StatusChip status={order.payment_status} />
+                  </div>
+
+                  <div className="rounded-2xl border border-farm-border bg-farm-primarySoft/40 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-farm-primary">
+                      Order
+                    </p>
+                    <StatusChip status={order.order_status} />
+                  </div>
+
+                  <div className="rounded-2xl border border-farm-border bg-farm-primarySoft/40 p-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-farm-primary">
+                      Pickup / Delivery
+                    </p>
+                    <StatusChip status={order.delivery_status} />
+                  </div>
+                </div>
+
+                {order.delivery_address ? (
+                  <p className="mt-3 rounded-2xl border border-farm-border bg-white p-3 text-sm font-bold text-farm-muted">
+                    Delivery address: {cleanText(order.delivery_address)}
+                  </p>
+                ) : null}
               </div>
-            </div>
 
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  await updateOrderStatus(order.id, 'completed');
-                  await refresh();
-                }}
-              >
-                Complete
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  await updatePaymentStatus(order.id, 'paid');
-                  await refresh();
-                }}
-              >
-                Mark paid
-              </Button>
-            </div>
-          </Card>
-        ))
+              <div className="flex flex-wrap gap-2 lg:min-w-[360px] lg:justify-end">
+                <Button href={`/orders/${order.id}`}>View receipt</Button>
+
+                <Button
+                  variant="secondary"
+                  disabled={isBusy}
+                  onClick={() =>
+                    runOrderAction(order.id, async () => {
+                      await updateOrderStatus(order.id, 'preparing');
+                    })
+                  }
+                >
+                  Preparing
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  disabled={isBusy}
+                  onClick={() =>
+                    runOrderAction(order.id, async () => {
+                      await updateOrderStatus(order.id, 'ready');
+                    })
+                  }
+                >
+                  Ready
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  disabled={isBusy}
+                  onClick={() =>
+                    runOrderAction(order.id, async () => {
+                      await updateOrderStatus(order.id, 'completed');
+                    })
+                  }
+                >
+                  Complete
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  disabled={isBusy}
+                  onClick={() =>
+                    runOrderAction(order.id, async () => {
+                      await updatePaymentStatus(order.id, 'paid');
+                    })
+                  }
+                >
+                  Mark paid
+                </Button>
+              </div>
+            </Card>
+          );
+        })
       ) : (
-        <EmptyState title="No orders found" subtitle="Orders will appear here after customers complete checkout." />
+        <EmptyState
+          title="No matching orders found"
+          subtitle="Try searching by customer name, email, phone, or receipt number."
+        />
       )}
     </div>
   );
+}
+
+function getAdminOrderCustomer(order: FarmOrder) {
+  const relation = (order as any).customers;
+
+  if (Array.isArray(relation)) {
+    return relation[0] || null;
+  }
+
+  return relation || null;
+}
+
+function adminOrderSearchText(order: FarmOrder) {
+  const customer = getAdminOrderCustomer(order);
+  const receipt = `HPJ-${shortIdLabel(order.id)}`;
+
+  return [
+    order.id,
+    receipt,
+    shortIdLabel(order.id),
+    order.customer_id,
+    order.email,
+    order.order_status,    order.payment_status,
+    order.delivery_status,
+    order.fulfillment_type,
+    order.delivery_address,
+    order.bank_reference,
+    customer?.full_name,
+    customer?.email,
+    customer?.phone,
+    customer?.address,
+    String(order.total ?? ''),
+  ]
+    .map((value) => String(value ?? '').toLowerCase())
+    .join(' ');
 }
 
 function CouponsAdmin({ coupons, refresh }: { coupons: Coupon[]; refresh: () => Promise<void> }) {
@@ -1169,7 +1325,7 @@ function FarmersAdmin({
   );
 }
 
-function ReviewsAdmin({ reviews }: { reviews: ProductReview[] }) {
+function ReviewsAdmin({ reviews }: { reviews: any[] }) {
   return (
     <div className="grid gap-4">
       <SectionMiniHeader title="Product reviews" subtitle={`${reviews.length} customer reviews`} />
@@ -1179,7 +1335,7 @@ function ReviewsAdmin({ reviews }: { reviews: ProductReview[] }) {
           const rating = Math.max(0, Math.min(5, Number(review.rating || 0)));
 
           return (
-            <Card key={review.id}>
+            <Card key={review.id || `${review.product_name}-${review.created_at}`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="font-black text-farm-primaryDark">
@@ -1402,6 +1558,10 @@ function Input({
     </label>
   );
 }
+
+
+
+
 
 
 
