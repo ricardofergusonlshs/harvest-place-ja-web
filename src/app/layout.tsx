@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 import { AppProviders } from '@/components/providers/app-providers';
-import { SiteShell } from '@/components/shell/site-shell';
+import { EliteShell } from '@/components/shell/site-shell';
 import { APP_NAME } from '@/lib/config';
 
 function getSiteUrl() {
@@ -134,7 +134,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en-JM" suppressHydrationWarning>
       <body className="min-h-screen bg-[#FAF8F0] text-[#1E2A21] antialiased selection:bg-[#DFA75A] selection:text-[#183B28]">
         <AppProviders>
-          <SiteShell>{children}</SiteShell>
+          <EliteShell>{children}</EliteShell>
         </AppProviders>
       </body>
     </html>

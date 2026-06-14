@@ -1,254 +1,151 @@
 'use client';
-
+import LiveChatWidget from '@/components/chat/live-chat-widget';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   Home,
   Leaf,
-  Menu,
-  Package,
-  Send,
   ShoppingBag,
-  Store,
-  UserRound,
-  X,
+  Package,
+  ClipboardList,
+  Headphones,
+  User,
+  Send,
 } from 'lucide-react';
-import { useAuth } from '@/components/providers/auth-provider';
-import { useCart } from '@/components/providers/cart-provider';
 
-const APP_NAME = 'The Harvest Place Ja';
+import { APP_NAME } from '@/lib/config';
 
-const NAV_ITEMS = [
-  { href: '/', label: 'Home' },
-  { href: '/shop', label: 'Shop' },
-  { href: '/my-box', label: 'My Box' },
-  { href: '/orders', label: 'Orders' },
-  { href: '/support', label: 'Support' },
-] as const;
-
-function cx(...classes: Array<string | false | null | undefined>) {
+function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
 
-function isActive(pathname: string, href: string) {
+const LOGO_IMAGE = '/logo.png';
+
+const navItems = [
+  { label: 'Home', href: '/', icon: Home },
+  { label: 'Shop', href: '/shop', icon: ShoppingBag },
+  { label: 'My Box', href: '/my-box', icon: Package },
+  { label: 'Orders', href: '/orders', icon: ClipboardList },
+  { label: 'Support', href: '/support', icon: Headphones },
+];
+
+function isActivePath(pathname: string, href: string) {
   if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SiteShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const { count } = useCart();
-  const { user, signOut } = useAuth();
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  const handleSignOut = useCallback(async () => {
-    try {
-      await signOut();
-    } catch {
-      try {
-        Object.keys(localStorage).forEach((key) => {
-          if (key.startsWith('sb-') || key.toLowerCase().includes('supabase')) localStorage.removeItem(key);
-        });
-        sessionStorage.clear();
-      } catch {
-        // Ignore blocked storage.
-      }
-      window.location.href = '/';
-    }
-  }, [signOut]);
-
-  const navItems = [...NAV_ITEMS];
-
+function HeaderNav({ pathname }: { pathname: string }) {
   return (
-    <div className="min-h-screen bg-[#FAF8F0] pb-20 text-[#183B28] md:pb-0">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-[#183B28] focus:px-5 focus:py-3 focus:text-sm focus:font-black focus:text-white"
-      >
-        Skip to content
-      </a>
+    <nav className="hidden items-center gap-1 lg:flex" aria-label="Main navigation">
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        const active = isActivePath(pathname, item.href);
 
-      <header className="sticky top-0 z-50 border-b border-[#D8E5D4] bg-[#FFFDF7]/94 shadow-[0_12px_45px_rgba(24,59,40,0.07)] backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1450px] items-center gap-4 px-4 py-2.5 sm:px-6 lg:px-10">
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            aria-expanded={open}
-            aria-controls="mobile-menu"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[#D8E5D4] bg-white text-[#183B28] shadow-sm transition hover:bg-[#EAF5E7] lg:hidden"
-          >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-
-          <BrandLogo />
-
-          <nav className="mx-auto hidden items-center gap-1 lg:flex" aria-label="Main navigation">
-            {navItems.map((item) => (
-              <HeaderNavLink key={`${item.href}-${item.label}`} href={item.href} active={isActive(pathname, item.href)}>
-                {item.label}
-              </HeaderNavLink>
-            ))}
-          </nav>
-
-          <div className="ml-auto hidden items-center gap-2 md:flex">
-            <Link
-              href="/account"
-              className="inline-flex min-h-[46px] items-center gap-2 rounded-full border border-[#D8E5D4] bg-white px-5 py-2 text-sm font-black text-[#183B28] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#EAF5E7]"
-            >
-              <UserRound className="h-5 w-5" />
-              Account
-            </Link>
-
-            <Link
-              href="/my-box"
-              aria-label={`My Box${count ? `, ${count} items` : ''}`}
-              className="relative hidden min-h-[48px] items-center gap-2 rounded-full border border-[#D8E5D4] bg-white px-4 py-2 text-sm font-black text-[#183B28] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#EAF5E7] xl:inline-flex"
-            >
-              <ShoppingBag className="h-5 w-5" />
-              {count > 0 ? <CartBadge count={count} /> : null}
-            </Link>
-
-            {user ? (
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="inline-flex min-h-[46px] items-center rounded-full border border-[#D8E5D4] bg-white px-5 py-2 text-sm font-black text-[#183B28] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#EAF5E7]"
-              >
-                Sign out
-              </button>
-            ) : (
-              <Link
-                href="/auth"
-                className="inline-flex min-h-[46px] items-center rounded-full border border-[#D8E5D4] bg-white px-5 py-2 text-sm font-black text-[#183B28] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#EAF5E7]"
-              >
-                Sign in
-              </Link>
+        return (
+          <Link
+            key={`${item.href}-${item.label}`}
+            href={item.href}
+            className={cn(
+              'group inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black transition-all duration-300',
+              active
+                ? 'bg-[#EAF5E7] text-[#183B28] shadow-sm'
+                : 'text-[#5F6A62] hover:bg-[#EAF5E7]/80 hover:text-[#183B28]'
             )}
-          </div>
+          >
+            <Icon
+              className={cn(
+                'h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5',
+                active ? 'text-[#2D6741]' : 'text-[#5F6A62]'
+              )}
+            />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function MarketplaceHeader({ pathname }: { pathname: string }) {
+  return (
+    <header className="sticky top-0 z-50 border-b border-[#D8E5D4]/80 bg-[#FFFDF7]/88 shadow-[0_18px_55px_rgba(24,59,40,0.08)] backdrop-blur-2xl">
+      <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
+        <Link href="/" className="group flex min-w-0 items-center gap-3">
+          <span className="relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white shadow-[0_14px_35px_rgba(24,59,40,0.14)] ring-1 ring-[#D8E5D4]">
+            <Image
+              src={LOGO_IMAGE}
+              alt={`${APP_NAME} logo`}
+              fill
+              sizes="56px"
+              className="object-contain p-1.5"
+              priority
+            />
+          </span>
+
+          <span className="min-w-0">
+            <span className="block truncate font-serif text-2xl font-black leading-none tracking-[-0.04em] text-[#183B28] sm:text-3xl">
+              {APP_NAME}
+            </span>
+            <span className="mt-1 hidden truncate text-[0.68rem] font-black uppercase tracking-[0.32em] text-[#DFA75A] sm:block">
+              Fresh from our farm to your table
+            </span>
+          </span>
+        </Link>
+
+        <HeaderNav pathname={pathname} />
+
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/account"
+            className="hidden items-center gap-2 rounded-full border border-[#D8E5D4] bg-white px-5 py-3 text-sm font-black text-[#183B28] shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[#2D6741]/35 hover:bg-[#EAF5E7] sm:inline-flex"
+          >
+            <User className="h-4 w-4" />
+            Account
+          </Link>
 
           <Link
             href="/my-box"
-            aria-label={`My Box${count ? `, ${count} items` : ''}`}
-            className="relative grid h-11 w-11 place-items-center rounded-full border border-[#D8E5D4] bg-white text-[#183B28] shadow-sm transition hover:bg-[#EAF5E7] md:hidden"
+            aria-label="Open My Box"
+            className="relative grid h-12 w-12 place-items-center rounded-full border border-[#D8E5D4] bg-white text-[#183B28] shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[#2D6741]/35 hover:bg-[#EAF5E7]"
           >
             <ShoppingBag className="h-5 w-5" />
-            {count > 0 ? <CartBadge count={count} /> : null}
+          </Link>
+
+          <Link
+            href="/auth"
+            className="hidden rounded-full border border-[#D8E5D4] bg-white px-5 py-3 text-sm font-black text-[#183B28] shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[#2D6741]/35 hover:bg-[#EAF5E7] sm:inline-flex"
+          >
+            Sign in
           </Link>
         </div>
-
-        {open ? (
-          <div id="mobile-menu" className="border-t border-[#D8E5D4] bg-[#FFFDF7] px-4 py-4 shadow-[0_18px_45px_rgba(24,59,40,0.10)] lg:hidden">
-            <nav className="grid gap-2" aria-label="Mobile navigation">
-              {navItems.map((item) => (
-                <Link
-                  key={`${item.href}-${item.label}-mobile`}
-                  href={item.href}
-                  className={cx(
-                    'rounded-2xl px-4 py-3 text-sm font-black transition',
-                    isActive(pathname, item.href) ? 'bg-[#EAF5E7] text-[#183B28]' : 'text-[#5F6A62] hover:bg-white hover:text-[#183B28]'
-                  )}
-                >
-                  {item.label}
-                </Link>
-              ))}
-              {user ? (
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className="rounded-2xl px-4 py-3 text-left text-sm font-black text-[#5F6A62] transition hover:bg-white hover:text-[#183B28]"
-                >
-                  Sign out
-                </button>
-              ) : (
-                <Link href="/auth" className="rounded-2xl px-4 py-3 text-sm font-black text-[#5F6A62] transition hover:bg-white hover:text-[#183B28]">
-                  Sign in
-                </Link>
-              )}
-            </nav>
-          </div>
-        ) : null}
-      </header>
-
-      <main id="main-content" className="w-full">
-        {children}
-      </main>
-
-      <MobileBottomNav count={count} pathname={pathname} />
-      <MarketplaceFooter />
-    </div>
-  );
-}
-
-function BrandLogo() {
-  return (
-    <Link href="/" className="flex shrink-0 items-center gap-3" aria-label={`${APP_NAME} home`}>
-      <div className="relative h-11 w-11 overflow-hidden rounded-2xl border border-[#D8E5D4] bg-white shadow-sm md:h-12 md:w-12">
-        <Image src="/logo.png" alt={APP_NAME} fill sizes="56px" className="object-cover" priority />
       </div>
-      <div className="hidden sm:block">
-        <p className="font-serif text-xl font-black leading-tight tracking-[-0.035em] text-[#183B28] md:text-[1.35rem]">{APP_NAME}</p>
-        <p className="text-[9px] font-black uppercase tracking-[0.31em] text-[#DFA75A]">Fresh from our farm to your table</p>
-      </div>
-    </Link>
+    </header>
   );
 }
 
-function HeaderNavLink({ href, active, children }: { href: string; active: boolean; children: ReactNode }) {
+function MobileBottomNav({ pathname }: { pathname: string }) {
   return (
-    <Link
-      href={href}
-      className={cx(
-        'rounded-full px-4 py-2.5 text-sm font-black transition hover:bg-[#EAF5E7] hover:text-[#183B28]',
-        active ? 'bg-[#EAF5E7] text-[#183B28]' : 'text-[#5F6A62]'
-      )}
-    >
-      {children}
-    </Link>
-  );
-}
-
-function CartBadge({ count }: { count: number }) {
-  return (
-    <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#2D6741] px-1 text-[10px] font-black text-white ring-2 ring-white">
-      {count > 99 ? '99+' : count}
-    </span>
-  );
-}
-
-function MobileBottomNav({ count, pathname }: { count: number; pathname: string }) {
-  const items = [
-    { href: '/', label: 'Home', icon: Home },
-    { href: '/shop', label: 'Shop', icon: Store },
-    { href: '/my-box', label: 'My Box', icon: ShoppingBag, count },
-    { href: '/orders', label: 'Orders', icon: Package },
-    { href: '/account', label: 'Account', icon: UserRound },
-  ];
-
-  return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#D8E5D4] bg-white/96 px-3 py-2 shadow-[0_-16px_45px_rgba(24,59,40,0.10)] backdrop-blur-xl md:hidden" aria-label="Mobile bottom navigation">
-      <div className="grid grid-cols-5 gap-1">
-        {items.map((item) => {
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#D8E5D4] bg-[#FFFDF7]/95 px-2 py-2 shadow-[0_-18px_45px_rgba(24,59,40,0.12)] backdrop-blur-2xl lg:hidden">
+      <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
+        {navItems.slice(0, 5).map((item) => {
           const Icon = item.icon;
-          const active = isActive(pathname, item.href);
+          const active = isActivePath(pathname, item.href);
+
           return (
             <Link
-              key={`${item.href}-${item.label}-bottom`}
+              key={`mobile-${item.href}-${item.label}`}
               href={item.href}
-              className={cx(
-                'relative flex flex-col items-center justify-center rounded-2xl px-2 py-2 text-[11px] font-black transition',
-                active ? 'bg-[#EAF5E7] text-[#2D6741]' : 'text-[#5F6A62] hover:bg-[#F7FBF5]'
+              className={cn(
+                'flex flex-col items-center justify-center rounded-2xl px-2 py-2 text-[0.68rem] font-black transition-all duration-300',
+                active
+                  ? 'bg-[#EAF5E7] text-[#2D6741]'
+                  : 'text-[#5F6A62] hover:bg-[#EAF5E7]/70 hover:text-[#183B28]'
               )}
             >
-              <Icon className="h-5 w-5" />
-              <span className="mt-1">{item.label}</span>
-              {item.count && item.count > 0 ? <CartBadge count={item.count} /> : null}
+              <Icon className="mb-1 h-5 w-5" />
+              <span className="truncate">{item.label}</span>
             </Link>
           );
         })}
@@ -257,90 +154,169 @@ function MobileBottomNav({ count, pathname }: { count: number; pathname: string 
   );
 }
 
-function FooterLink({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <Link href={href} className="text-sm font-semibold text-white/76 transition hover:text-white">
-      {children}
-    </Link>
-  );
-}
-
 function MarketplaceFooter() {
   return (
-    <footer className="bg-[#0B3A25] text-white">
-      <div className="mx-auto grid max-w-[1450px] gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.35fr_0.7fr_0.7fr_0.7fr_1fr] lg:px-10">
+    <footer className="mt-16 bg-[#0B3A25] text-white">
+      <div className="mx-auto grid w-full max-w-[1500px] gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-[1.3fr_0.7fr_0.7fr_0.7fr_1.1fr] lg:px-10">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="relative h-14 w-14 overflow-hidden rounded-2xl border border-white/12 bg-white">
-              <Image src="/logo.png" alt={APP_NAME} fill sizes="56px" className="object-cover" />
-            </div>
-            <div>
-              <h2 className="font-serif text-2xl font-black leading-tight">{APP_NAME}</h2>
-              <p className="text-sm font-bold text-white/84">Fresh from our farm to your table.</p>
-            </div>
-          </div>
-          <p className="mt-5 max-w-sm text-sm font-semibold leading-7 text-white/76">
-            A clean Jamaican farm store for fresh produce, weekly boxes, safe requests, and Android app ordering.
+          <Link href="/" className="flex items-center gap-3">
+            <span className="relative grid h-16 w-16 overflow-hidden rounded-2xl bg-white shadow-lg">
+              <Image
+                src={LOGO_IMAGE}
+                alt={`${APP_NAME} logo`}
+                fill
+                sizes="64px"
+                className="object-contain p-1.5"
+              />
+            </span>
+            <span>
+              <span className="block font-serif text-2xl font-black tracking-[-0.03em]">
+                {APP_NAME}
+              </span>
+              <span className="text-sm font-bold text-white/80">
+                Fresh from our farm to your table.
+              </span>
+            </span>
+          </Link>
+
+          <p className="mt-6 max-w-sm text-sm font-semibold leading-7 text-white/78">
+            A clean Jamaican farm store for fresh produce, weekly boxes, safe
+            requests, and Android app ordering.
           </p>
+
           <div className="mt-6 flex gap-3">
-            <a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/10 text-lg font-black text-white transition hover:bg-white/18">
-              f
+            <a
+              href="https://www.facebook.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Facebook"
+              className="grid h-11 w-11 place-items-center rounded-full border border-white/18 bg-white/10 transition hover:bg-white/18"
+            >
+             <span className="text-sm font-black">f</span>
             </a>
-            <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/10 text-sm font-black text-white transition hover:bg-white/18">
-              IG
+            <a
+              href="https://www.instagram.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram"
+              className="grid h-11 w-11 place-items-center rounded-full border border-white/18 bg-white/10 transition hover:bg-white/18"
+            >
+              <span className="text-xs font-black">IG</span>
             </a>
           </div>
         </div>
 
-        <div>
-          <h3 className="text-xs font-black uppercase tracking-[0.28em] text-[#DFA75A]">Shop</h3>
-          <div className="mt-5 grid gap-3">
-            <FooterLink href="/shop">Shop All</FooterLink>
-            <FooterLink href="/shop">This Week&apos;s Harvest</FooterLink>
-            <FooterLink href="/my-box">Harvest Boxes</FooterLink>
-          </div>
-        </div>
+        <FooterGroup
+          title="Shop"
+          links={[
+            ['Shop All', '/shop'],
+            ["This Week's Harvest", '/#fresh-picks'],
+            ['Harvest Boxes', '/weekly-box'],
+          ]}
+        />
+
+        <FooterGroup
+          title="Account"
+          links={[
+            ['My Requests', '/orders'],
+            ['Orders', '/orders'],
+            ['Account', '/account'],
+            ['Sign in', '/auth'],
+          ]}
+        />
+
+        <FooterGroup
+          title="Support"
+          links={[
+            ['Help & Support', '/support'],
+            ['Delivery & Pickup', '/support'],
+            ['Privacy Policy', '/privacy'],
+            ['Terms of Service', '/terms'],
+          ]}
+        />
 
         <div>
-          <h3 className="text-xs font-black uppercase tracking-[0.28em] text-[#DFA75A]">Account</h3>
-          <div className="mt-5 grid gap-3">
-            <FooterLink href="/orders">My Requests</FooterLink>
-            <FooterLink href="/orders">Orders</FooterLink>
-            <FooterLink href="/account">Account</FooterLink>
-            <FooterLink href="/auth">Sign in</FooterLink>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-xs font-black uppercase tracking-[0.28em] text-[#DFA75A]">Support</h3>
-          <div className="mt-5 grid gap-3">
-            <FooterLink href="/support">Help & Support</FooterLink>
-            <FooterLink href="/support">Delivery & Pickup</FooterLink>
-            <FooterLink href="/privacy">Privacy Policy</FooterLink>
-            <FooterLink href="/terms">Terms of Service</FooterLink>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-xs font-black uppercase tracking-[0.28em] text-[#DFA75A]">Stay fresh with us</h3>
-          <p className="mt-5 text-sm font-semibold leading-7 text-white/76">
+          <h3 className="text-xs font-black uppercase tracking-[0.32em] text-[#DFA75A]">
+            Stay fresh with us
+          </h3>
+          <p className="mt-4 max-w-xs text-sm font-semibold leading-7 text-white/78">
             Get farm updates, new harvests, and exclusive deals.
           </p>
-          <form className="mt-4 flex overflow-hidden rounded-full border border-white/14 bg-white/10 p-1" onSubmit={(event) => event.preventDefault()}>
-            <input aria-label="Email address" placeholder="Enter your email" className="min-w-0 flex-1 bg-transparent px-4 text-sm font-semibold text-white outline-none placeholder:text-white/45" />
-            <button type="submit" aria-label="Join updates" className="grid h-10 w-10 place-items-center rounded-full bg-[#DFA75A] text-[#183B28]">
-              <Send className="h-4 w-4" />
+
+          <form className="mt-6 flex max-w-sm overflow-hidden rounded-full border border-white/25 bg-white/10 p-1">
+            <input
+              type="email"
+              placeholder="Enter your email"
+              className="min-w-0 flex-1 bg-transparent px-4 text-sm font-bold text-white placeholder:text-white/55 outline-none"
+            />
+            <button
+              type="submit"
+              aria-label="Join mailing list"
+              className="grid h-11 w-11 place-items-center rounded-full bg-[#DFA75A] text-[#183B28] transition hover:bg-[#f0bd6f]"
+            >
+              <Send className="h-5 w-5" />
             </button>
           </form>
         </div>
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-[1450px] flex-col gap-3 px-4 py-5 text-xs font-semibold text-white/58 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-10">
+        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-3 px-4 py-6 text-xs font-bold text-white/65 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-10">
           <p>© 2026 The Harvest Place Ja. All rights reserved.</p>
-          <p className="inline-flex items-center gap-2">Premium farm store MVP • Jamaica <Leaf className="h-4 w-4 text-[#DFA75A]" /></p>
+          <p className="inline-flex items-center gap-2">
+            Premium farm store MVP • Jamaica{' '}
+            <Leaf className="h-4 w-4 text-[#DFA75A]" />
+          </p>
         </div>
       </div>
     </footer>
   );
 }
+
+function FooterGroup({
+  title,
+  links,
+}: {
+  title: string;
+  links: Array<[string, string]>;
+}) {
+  return (
+    <div>
+      <h3 className="text-xs font-black uppercase tracking-[0.32em] text-[#DFA75A]">
+        {title}
+      </h3>
+      <ul className="mt-4 space-y-3">
+        {links.map(([label, href]) => (
+          <li key={`${title}-${href}-${label}`}>
+            <Link
+              href={href}
+              className="text-sm font-bold text-white/78 transition hover:text-white"
+            >
+              {label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function SiteShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname() || '/';
+
+  return (
+    <div className="min-h-screen bg-[#FAF8F0] text-[#183B28]">
+      <MarketplaceHeader pathname={pathname} />
+
+      <main className="w-full pb-20 lg:pb-0">{children}</main>
+
+      <LiveChatWidget />
+
+      <MarketplaceFooter />
+      <MobileBottomNav pathname={pathname} />
+    </div>
+  );
+}
+
+export const EliteShell = SiteShell;
+export default SiteShell;
