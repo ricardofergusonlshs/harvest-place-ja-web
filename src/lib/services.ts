@@ -45,7 +45,7 @@ function normalizeProductsForCustomer(data: unknown): Product[] {
 }
 
 
-const SUPABASE_TIMEOUT_MS = 45000;
+const SUPABASE_TIMEOUT_MS = 8000;
 
 async function withTimeout<T>(promise: PromiseLike<T>, label: string, timeoutMs = SUPABASE_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -120,39 +120,23 @@ export async function fetchHomeHeroSlides() {
 }
 
 export async function fetchProducts() {
-  const supabase = getSupabaseBrowserClient();
+  if (typeof window !== 'undefined') {
+    try {
+      const response = await fetch('/api/products', {
+        cache: 'no-store',
+      });
 
-  try {
-    const { data, error } = await withTimeout(
-      supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(120),
-      'products select(*) request'
-    );
+      const payload = await response.json();
+      const products = Array.isArray(payload?.products) ? payload.products : [];
 
-    if (error) throw error;
-    return normalizeProductsForCustomer(data);
-  } catch (orderedError) {
-    logSupabaseError('Products ordered select failed; trying select(*) without created_at order', orderedError);
+      return normalizeProductsForCustomer(products);
+    } catch (error) {
+      logSupabaseError('Local products API failed', error);
+      return [];
+    }
   }
 
-  try {
-    const { data, error } = await withTimeout(
-      supabase
-        .from('products')
-        .select('*')
-        .limit(120),
-      'products select(*) no-order fallback request'
-    );
-
-    if (error) throw error;
-    return normalizeProductsForCustomer(data);
-  } catch (fallbackError) {
-    logSupabaseError('Products could not load. Check products SELECT RLS policy, anon key, and readable rows', fallbackError);
-    return [];
-  }
+  return [];
 }
 
 export async function fetchAllProducts() {
@@ -1217,6 +1201,8 @@ export async function fetchFarmerPayouts(farmerId?: string) {
   if (error) return [];
   return rows<FarmerPayout>(data);
 }
+
+
 
 
 

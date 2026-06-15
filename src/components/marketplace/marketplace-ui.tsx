@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -25,6 +25,37 @@ import type { Product } from '@/lib/types';
 const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=com.harvestplaceja.myapp&pli=1';
 
 const FALLBACK_PRODUCT_IMAGE = '/logo.png';
+
+function forceProduceImage(product: Product) {
+  const name = String(product.name || '').toLowerCase();
+  const category = String(product.category || '').toLowerCase();
+
+  if (name.includes('oregano')) return '/categories/herbs.jpg';
+  if (name.includes('lemon balm')) return '/categories/herbs.jpg';
+  if (name.includes('thyme')) return '/categories/herbs.jpg';
+  if (name.includes('mint')) return '/categories/herbs.jpg';
+  if (name.includes('parsley')) return '/categories/herbs.jpg';
+
+  if (name.includes('garlic')) return '/categories/vegetables.jpg';
+
+  if (name.includes('sweet potato')) return '/categories/roots.jpg';
+  if (name.includes('potato')) return '/categories/roots.jpg';
+  if (name.includes('yam')) return '/categories/roots.jpg';
+  if (name.includes('cassava')) return '/categories/roots.jpg';
+
+  if (name.includes('melon')) return '/categories/fruits.jpg';
+  if (name.includes('sweet sop')) return '/categories/fruits.jpg';
+  if (name.includes('soursop')) return '/categories/fruits.jpg';
+  if (name.includes('pineapple')) return '/categories/fruits.jpg';
+  if (name.includes('apple')) return '/categories/fruits.jpg';
+
+  if (category.includes('herb')) return '/categories/herbs.jpg';
+  if (category.includes('vegetable')) return '/categories/vegetables.jpg';
+  if (category.includes('ground') || category.includes('root')) return '/categories/roots.jpg';
+  if (category.includes('fruit')) return '/categories/fruits.jpg';
+
+  return forceProduceImage(product);
+}
 const HERO_IMAGE = '/marketplace-hero-clean.png';
 const HERO_IMAGE_FALLBACKS = ['/elite/hero-produce-box.png', '/elite/weekly-box-banner.png', FALLBACK_PRODUCT_IMAGE];
 const FARM_STORY_IMAGE = '/elite/farmer-story.png';
@@ -120,7 +151,40 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 function productImage(product: Product) {
-  return product.image_url || FALLBACK_PRODUCT_IMAGE;
+  const rawImage = String(product.image_url || '').trim();
+  const name = String(product.name || '').toLowerCase();
+  const category = String(product.category || '').toLowerCase();
+
+  const badImage =
+    !rawImage ||
+    rawImage.includes('marketplace-hero') ||
+    rawImage.includes('weekly-box') ||
+    rawImage.includes('ready-soon') ||
+    rawImage.includes('farmer-story') ||
+    rawImage.includes('harvestplaceja-app') ||
+    rawImage.includes('google-play') ||
+    rawImage.includes('certified-jamaican') ||
+    rawImage.includes('screenshot') ||
+    rawImage.includes('homepage') ||
+    rawImage.includes('banner');
+
+  if (!badImage) return rawImage;
+
+  if (name.includes('garlic')) return '/categories/vegetables.jpg';
+  if (name.includes('potato') || name.includes('yam') || name.includes('cassava')) return '/categories/roots.jpg';
+  if (name.includes('oregano') || name.includes('thyme') || name.includes('mint') || name.includes('parsley') || name.includes('lemon balm')) return '/categories/herbs.jpg';
+  if (name.includes('melon') || name.includes('sweet sop') || name.includes('soursop') || name.includes('apple') || name.includes('pineapple')) return '/categories/fruits.jpg';
+  if (name.includes('egg')) return '/categories/eggs.jpg';
+  if (name.includes('honey')) return '/categories/honey.jpg';
+
+  if (category.includes('herb')) return '/categories/herbs.jpg';
+  if (category.includes('fruit')) return '/categories/fruits.jpg';
+  if (category.includes('ground') || category.includes('root')) return '/categories/roots.jpg';
+  if (category.includes('egg')) return '/categories/eggs.jpg';
+  if (category.includes('honey')) return '/categories/honey.jpg';
+  if (category.includes('vegetable')) return '/categories/vegetables.jpg';
+
+  return FALLBACK_PRODUCT_IMAGE;
 }
 
 function productAvailable(product: Product) {
@@ -192,10 +256,10 @@ function SafePublicImage({
 }
 
 function ProductImage({ product, className = 'object-contain p-4' }: { product: Product; className?: string }) {
-  const [src, setSrc] = useState(productImage(product));
+  const [src, setSrc] = useState(forceProduceImage(product));
 
   useEffect(() => {
-    setSrc(productImage(product));
+    setSrc(forceProduceImage(product));
   }, [product.image_url]);
 
   return (
@@ -622,7 +686,7 @@ function WeeklyBoxSection() {
               Carefully packed weekly harvest boxes
             </h2>
             <p className="mt-4 max-w-xl text-sm font-semibold leading-7 text-white/86 sm:text-base">
-              Enjoy the best of the season with our curated boxes—packed with premium, fresh produce straight from our farm to you.
+              Enjoy the best of the season with our curated boxesâ€”packed with premium, fresh produce straight from our farm to you.
             </p>
           </div>
 
@@ -815,3 +879,5 @@ function ShopLayout({ products, loading, notice }: { products: Product[]; loadin
     </div>
   );
 }
+
+

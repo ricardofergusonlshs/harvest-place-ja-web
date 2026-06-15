@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import {
   createContext,
@@ -10,7 +10,11 @@ import {
   type ReactNode,
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+
+import {
+  clearSupabaseBrowserSession,
+  getSupabaseBrowserClient,
+} from '@/lib/supabase/client';
 import {
   fetchCurrentFarmerProfile,
   isCurrentUserAdminFromDatabase,
@@ -35,6 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [farmerProfile, setFarmerProfile] = useState<FarmerProfile | null>(null);
 
+  const clearRoles = useCallback(() => {
+    setIsAdmin(false);
+    setFarmerProfile(null);
+  }, []);
+
   const refreshRoles = useCallback(async () => {
     try {
       const [admin, farmer] = await Promise.all([
@@ -45,44 +54,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(Boolean(admin));
       setFarmerProfile(farmer);
     } catch {
-      setIsAdmin(false);
-      setFarmerProfile(null);
+      clearRoles();
     }
-  }, []);
-
-  const clearRoles = useCallback(() => {
-    setIsAdmin(false);
-    setFarmerProfile(null);
-  }, []);
+  }, [clearRoles]);
 
   useEffect(() => {
     let mounted = true;
-    const supabase = getSupabaseBrowserClient();
+    let unsubscribe: (() => void) | null = null;
 
     async function loadSession() {
       setLoading(true);
 
       try {
+        const supabase = getSupabaseBrowserClient();
         const { data, error } = await supabase.auth.getSession();
 
         if (!mounted) return;
 
         if (error) {
+          console.warn('Auth session could not load. Clearing local session:', error);
+          clearSupabaseBrowserSession();
           setSession(null);
           clearRoles();
           return;
         }
 
-        setSession(data.session);
+        setSession(data.session ?? null);
 
         if (data.session) {
           await refreshRoles();
         } else {
           clearRoles();
         }
-      } catch {
+
+        const listener = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+          if (!mounted) return;
+
+          try {
+            setLoading(true);
+            setSession(nextSession);
+
+            if (nextSession) {
+              await refreshRoles();
+            } else {
+              clearRoles();
+            }
+          } catch (error) {
+            console.warn('Auth state update failed safely:', error);
+            clearSupabaseBrowserSession();
+            setSession(null);
+            clearRoles();
+          } finally {
+            if (mounted) setLoading(false);
+          }
+        });
+
+        unsubscribe = () => listener.data.subscription.unsubscribe();
+      } catch (error) {
+        console.warn('Auth provider recovered from session error:', error);
+
         if (!mounted) return;
 
+        clearSupabaseBrowserSession();
         setSession(null);
         clearRoles();
       } finally {
@@ -90,54 +123,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    loadSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      if (!mounted) return;
-
-      setSession(nextSession);
-      setLoading(true);
-
-      try {
-        if (nextSession) {
-          await refreshRoles();
-        } else {
-          clearRoles();
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    });
+    void loadSession();
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      unsubscribe?.();
     };
   }, [clearRoles, refreshRoles]);
 
   const signOut = useCallback(async () => {
-    const supabase = getSupabaseBrowserClient();
-
     try {
+      const supabase = getSupabaseBrowserClient();
       await supabase.auth.signOut({ scope: 'local' });
     } catch (error) {
       console.warn('Sign out failed, clearing local session anyway:', error);
     }
 
-    try {
-      Object.keys(localStorage).forEach((key) => {
-        if (key.startsWith('sb-') || key.toLowerCase().includes('supabase')) {
-          localStorage.removeItem(key);
-        }
-      });
-
-      sessionStorage.clear();
-    } catch {
-      // Browser storage may be unavailable in some private/incognito contexts.
-    }
-
+    clearSupabaseBrowserSession();
     setSession(null);
     clearRoles();
 
@@ -154,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshRoles,
       signOut,
     }),
-    [session, loading, isAdmin, farmerProfile, refreshRoles, signOut]
+    [session, loading, isAdmin, farmerProfile, refreshRoles, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -163,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 async function safeRoleLookup<T>(
   promise: Promise<T>,
   fallback: T,
-  timeoutMs = 10000
+  timeoutMs = 8000,
 ): Promise<T> {
   try {
     return await Promise.race([
