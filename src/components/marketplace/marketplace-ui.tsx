@@ -25,37 +25,49 @@ import type { Product } from '@/lib/types';
 const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=com.harvestplaceja.myapp&pli=1';
 
 const FALLBACK_PRODUCT_IMAGE = '/logo.png';
+const CORRECT_SUPABASE_HOST = 'zvgvvsgjzfygbsqwawoh.supabase.co';
+const WRONG_SUPABASE_HOST = 'zvgvvsgjzfyqbsqwawoh.supabase.co';
 
-function forceProduceImage(product: Product) {
-  const name = String(product.name || '').toLowerCase();
-  const category = String(product.category || '').toLowerCase();
+function forceProduceImage(product: Product): string {
+  const record = product as Product & Record<string, unknown>;
 
-  if (name.includes('oregano')) return '/categories/herbs.jpg';
-  if (name.includes('lemon balm')) return '/categories/herbs.jpg';
-  if (name.includes('thyme')) return '/categories/herbs.jpg';
-  if (name.includes('mint')) return '/categories/herbs.jpg';
-  if (name.includes('parsley')) return '/categories/herbs.jpg';
+  const rawUrl =
+    record.image_url ??
+    record.imageUrl ??
+    record.image ??
+    record.photo_url ??
+    record.photoUrl ??
+    '';
 
-  if (name.includes('garlic')) return '/categories/vegetables.jpg';
+  if (typeof rawUrl !== 'string') {
+    return FALLBACK_PRODUCT_IMAGE;
+  }
 
-  if (name.includes('sweet potato')) return '/categories/roots.jpg';
-  if (name.includes('potato')) return '/categories/roots.jpg';
-  if (name.includes('yam')) return '/categories/roots.jpg';
-  if (name.includes('cassava')) return '/categories/roots.jpg';
+  const imageUrl = rawUrl.trim();
 
-  if (name.includes('melon')) return '/categories/fruits.jpg';
-  if (name.includes('sweet sop')) return '/categories/fruits.jpg';
-  if (name.includes('soursop')) return '/categories/fruits.jpg';
-  if (name.includes('pineapple')) return '/categories/fruits.jpg';
-  if (name.includes('apple')) return '/categories/fruits.jpg';
+  if (!imageUrl) {
+    return FALLBACK_PRODUCT_IMAGE;
+  }
 
-  if (category.includes('herb')) return '/categories/herbs.jpg';
-  if (category.includes('vegetable')) return '/categories/vegetables.jpg';
-  if (category.includes('ground') || category.includes('root')) return '/categories/roots.jpg';
-  if (category.includes('fruit')) return '/categories/fruits.jpg';
+  // Fix the old wrong Supabase project domain without changing the database.
+  if (imageUrl.includes(WRONG_SUPABASE_HOST)) {
+    return imageUrl.replace(WRONG_SUPABASE_HOST, CORRECT_SUPABASE_HOST);
+  }
 
-  return forceProduceImage(product);
+  // Keep valid full URLs exactly as they are.
+  if (imageUrl.startsWith('https://') || imageUrl.startsWith('http://')) {
+    return imageUrl;
+  }
+
+  // Keep valid local public paths if any are used.
+  if (imageUrl.startsWith('/')) {
+    return imageUrl;
+  }
+
+  // Convert storage paths like "products/ackee.jpg" into a full Supabase public URL.
+  return `https://${CORRECT_SUPABASE_HOST}/storage/v1/object/public/product-images/${imageUrl}`;
 }
+
 const HERO_IMAGE = '/marketplace-hero-clean.png';
 const HERO_IMAGE_FALLBACKS = ['/elite/hero-produce-box.png', '/elite/weekly-box-banner.png', FALLBACK_PRODUCT_IMAGE];
 const FARM_STORY_IMAGE = '/elite/farmer-story.png';
@@ -151,41 +163,10 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 function productImage(product: Product) {
-  const rawImage = String(product.image_url || '').trim();
-  const name = String(product.name || '').toLowerCase();
-  const category = String(product.category || '').toLowerCase();
-
-  const badImage =
-    !rawImage ||
-    rawImage.includes('marketplace-hero') ||
-    rawImage.includes('weekly-box') ||
-    rawImage.includes('ready-soon') ||
-    rawImage.includes('farmer-story') ||
-    rawImage.includes('harvestplaceja-app') ||
-    rawImage.includes('google-play') ||
-    rawImage.includes('certified-jamaican') ||
-    rawImage.includes('screenshot') ||
-    rawImage.includes('homepage') ||
-    rawImage.includes('banner');
-
-  if (!badImage) return rawImage;
-
-  if (name.includes('garlic')) return '/categories/vegetables.jpg';
-  if (name.includes('potato') || name.includes('yam') || name.includes('cassava')) return '/categories/roots.jpg';
-  if (name.includes('oregano') || name.includes('thyme') || name.includes('mint') || name.includes('parsley') || name.includes('lemon balm')) return '/categories/herbs.jpg';
-  if (name.includes('melon') || name.includes('sweet sop') || name.includes('soursop') || name.includes('apple') || name.includes('pineapple')) return '/categories/fruits.jpg';
-  if (name.includes('egg')) return '/categories/eggs.jpg';
-  if (name.includes('honey')) return '/categories/honey.jpg';
-
-  if (category.includes('herb')) return '/categories/herbs.jpg';
-  if (category.includes('fruit')) return '/categories/fruits.jpg';
-  if (category.includes('ground') || category.includes('root')) return '/categories/roots.jpg';
-  if (category.includes('egg')) return '/categories/eggs.jpg';
-  if (category.includes('honey')) return '/categories/honey.jpg';
-  if (category.includes('vegetable')) return '/categories/vegetables.jpg';
-
-  return FALLBACK_PRODUCT_IMAGE;
+  const imageUrl = forceProduceImage(product);
+  return imageUrl || FALLBACK_PRODUCT_IMAGE;
 }
+
 
 function productAvailable(product: Product) {
   return Number(product.stock_quantity || 0) > 0 && product.is_available && product.product_status !== 'hidden';
