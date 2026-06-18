@@ -61,6 +61,10 @@ type Metrics = {
 };
 
 type ProductUpdatePayload = Partial<Product> & {
+  name?: string;
+  price?: number;
+  category?: string;
+  image_url?: string;
   admin_note?: string;
   is_local?: boolean;
   is_organic?: boolean;
@@ -151,13 +155,20 @@ function cleanText(value: unknown, fallback = 'Not available') {
   if (!text) return fallback;
 
   return text
-    .replaceAll('Ã¢â‚¬Â¢', 'â€¢')
-    .replaceAll('Ã¢Ëœâ€¦', 'â˜…')
-    .replaceAll('Ã¢â‚¬â„¢', 'â€™')
-    .replaceAll('Ã¢â‚¬Å“', 'â€œ')
-    .replaceAll('Ã¢â‚¬Â', 'â€')
-    .replaceAll('Ã¢â‚¬â€œ', 'â€“')
-    .replaceAll('Ã¢â‚¬â€', 'â€”')
+    .replaceAll('Ã¢â‚¬Â¢', '•')
+    .replaceAll('â€¢', '•')
+    .replaceAll('Ã¢Ëœâ€¦', '★')
+    .replaceAll('â˜…', '★')
+    .replaceAll('Ã¢â‚¬â„¢', '’')
+    .replaceAll('â€™', '’')
+    .replaceAll('Ã¢â‚¬Å“', '“')
+    .replaceAll('â€œ', '“')
+    .replaceAll('Ã¢â‚¬Â', '”')
+    .replaceAll('â€', '”')
+    .replaceAll('Ã¢â‚¬â€œ', '–')
+    .replaceAll('â€“', '–')
+    .replaceAll('Ã¢â‚¬â€', '—')
+    .replaceAll('â€”', '—')
     .replace(/\s+/g, ' ');
 }
 
@@ -270,6 +281,16 @@ export default function AdminPage() {
     }
   }
 
+  function patchProductLocally(productId: string, payload: ProductUpdatePayload) {
+    setProducts((current) =>
+      current.map((product) =>
+        product.id === productId
+          ? ({ ...product, ...payload } as Product)
+          : product,
+      ),
+    );
+  }
+
   useEffect(() => {
     if (!authLoading && user && isAdmin) {
       void refresh();
@@ -380,7 +401,7 @@ export default function AdminPage() {
 
         <section className="mt-6">
           {tab === 'overview' ? <Overview metrics={metrics} /> : null}
-          {tab === 'products' ? <ProductsAdmin products={products} refresh={refresh} /> : null}
+          {tab === 'products' ? <ProductsAdmin products={products} refresh={refresh} onProductPatched={patchProductLocally} /> : null}
           {tab === 'orders' ? <OrdersAdmin orders={orders} refresh={refresh} /> : null}
           {tab === 'coupons' ? <CouponsAdmin coupons={coupons} refresh={refresh} /> : null}
           {tab === 'support' ? <SupportAdmin tickets={support} refresh={refresh} /> : null}
@@ -429,7 +450,15 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function ProductsAdmin({ products, refresh }: { products: Product[]; refresh: () => Promise<void> }) {
+function ProductsAdmin({
+  products,
+  refresh,
+  onProductPatched,
+}: {
+  products: Product[];
+  refresh: () => Promise<void>;
+  onProductPatched: (productId: string, payload: ProductUpdatePayload) => void;
+}) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('Vegetables');
@@ -733,7 +762,7 @@ function ProductsAdmin({ products, refresh }: { products: Product[]; refresh: ()
 
         {filteredProducts.length ? (
           filteredProducts.map((product) => (
-            <ProductAdminCard key={product.id} product={product} refresh={refresh} />
+            <ProductAdminCard key={product.id} product={product} onProductPatched={onProductPatched} />
           ))
         ) : (
           <EmptyState title="No matching harvest items" subtitle="Try changing the search term or badge filter." />
@@ -743,7 +772,13 @@ function ProductsAdmin({ products, refresh }: { products: Product[]; refresh: ()
   );
 }
 
-function ProductAdminCard({ product, refresh }: { product: Product; refresh: () => Promise<void> }) {
+function ProductAdminCard({
+  product,
+  onProductPatched,
+}: {
+  product: Product;
+  onProductPatched: (productId: string, payload: ProductUpdatePayload) => void;
+}) {
   const item = looseProduct(product);
   const stock = Number(item.stock_quantity ?? 0);
   const isReadySoon = Boolean(item.ready_soon) || item.product_status === 'ready_soon';
@@ -758,10 +793,43 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
   const isSeasonal = Boolean(item.is_seasonal) || productHasTag(item, 'seasonal');
   const isBestseller = Boolean(item.is_bestseller) || productHasTag(item, 'bestseller');
   const isFarmFresh = Boolean(item.farm_fresh) || productHasTag(item, 'farm_fresh');
+  const [stockInput, setStockInput] = useState(stock > 0 ? String(stock) : '');
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState(String(item.name || ''));
+  const [editPrice, setEditPrice] = useState(String(item.price ?? ''));
+  const [editCategory, setEditCategory] = useState(String(item.category || ''));
+  const [editImageUrl, setEditImageUrl] = useState(String(item.image_url || ''));
+  const [imageUploading, setImageUploading] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionMessage, setActionMessage] = useState('');
+
+  useEffect(() => {
+    setStockInput(stock > 0 ? String(stock) : '');
+  }, [stock]);
+
+  useEffect(() => {
+    setEditName(String(item.name || ''));
+    setEditPrice(String(item.price ?? ''));
+    setEditCategory(String(item.category || ''));
+    setEditImageUrl(String(item.image_url || ''));
+  }, [item.name, item.price, item.category, item.image_url]);
 
   async function updateProduct(payload: ProductUpdatePayload) {
-    await adminUpdateProduct(product.id, payload);
-    await refresh();
+    if (actionBusy) return;
+
+    setActionBusy(true);
+    setActionMessage('Updating...');
+
+    try {
+      await adminUpdateProduct(product.id, payload);
+      onProductPatched(product.id, payload);
+      setActionMessage('Updated.');
+      window.setTimeout(() => setActionMessage(''), 1200);
+    } catch (error) {
+      setActionMessage(errorMessage(error));
+    } finally {
+      setActionBusy(false);
+    }
   }
 
   async function toggleAvailability() {
@@ -816,6 +884,8 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
   }
 
   async function markOutOfStock() {
+    setStockInput('');
+
     await updateProduct({
       stock_quantity: 0,
       is_available: false,
@@ -824,8 +894,77 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
     });
   }
 
+  async function restockProduct(value?: number) {
+    const rawValue = typeof value === 'number' ? value : Number(stockInput);
+    const nextStock = Math.max(0, Math.floor(Number.isFinite(rawValue) ? rawValue : 0));
+
+    if (nextStock <= 0) {
+      setActionMessage('Enter a stock amount greater than 0.');
+      return;
+    }
+
+    setStockInput(String(nextStock));
+
+    await updateProduct({
+      stock_quantity: nextStock,
+      is_available: true,
+      ready_soon: false,
+      product_status: 'available',
+      approval_status: 'approved',
+    });
+  }
+
+  async function saveProductEdits() {
+    const cleanName = editName.trim();
+    const cleanCategory = editCategory.trim() || 'Vegetables';
+    const numericPrice = Number(editPrice || 0);
+    const cleanImageUrl = editImageUrl.trim();
+
+    if (!cleanName) {
+      setActionMessage('Enter a product name.');
+      return;
+    }
+
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      setActionMessage('Enter a valid price.');
+      return;
+    }
+
+    await updateProduct({
+      name: cleanName,
+      price: numericPrice,
+      category: cleanCategory,
+      image_url: cleanImageUrl,
+    });
+
+    setEditOpen(false);
+  }
+
+  async function uploadProductImageForCard(file: File | null) {
+    if (!file || actionBusy || imageUploading) return;
+
+    setImageUploading(true);
+    setActionMessage('Uploading image...');
+
+    try {
+      const url = await uploadProductImage(file);
+      setEditImageUrl(url);
+
+      await updateProduct({
+        image_url: url,
+      });
+
+      setActionMessage('Image updated.');
+      window.setTimeout(() => setActionMessage(''), 1400);
+    } catch (error) {
+      setActionMessage(errorMessage(error));
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
   return (
-    <article className="rounded-[28px] border border-[#DDE8D8] bg-white p-5 shadow-[0_18px_45px_rgba(24,59,40,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_rgba(24,59,40,0.1)]">
+    <article className="rounded-[28px] border border-[#DDE8D8] bg-white p-5 shadow-[0_18px_45px_rgba(24,59,40,0.06)] transition-shadow hover:shadow-[0_22px_60px_rgba(24,59,40,0.1)]">
       <div className="grid gap-5 xl:grid-cols-[1fr_auto] xl:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -837,10 +976,152 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
           </div>
 
           <p className="mt-1 text-sm font-bold text-farm-muted">
-            {cleanText(item.category, 'Uncategorised')} â€¢ {formatJmd(item.price)} â€¢ Stock {stock}
+            {cleanText(item.category, 'Uncategorised')} • {formatJmd(item.price)} • Stock {stock}
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 rounded-[1.5rem] border border-[#DDE8D8] bg-[#F7FBF5] p-3">
+            <div className="grid gap-4 sm:grid-cols-[128px_1fr] sm:items-center">
+              <div className="relative h-32 w-full overflow-hidden rounded-[1.25rem] border border-[#DDE8D8] bg-white shadow-sm sm:w-32">
+                {item.image_url ? (
+                  <img
+                    src={String(item.image_url)}
+                    alt={cleanText(item.name, 'Product image')}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="grid h-full w-full place-items-center px-3 text-center text-[11px] font-black uppercase tracking-[0.14em] text-[#66746B]">
+                    No image
+                  </div>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setEditOpen((value) => !value);
+                  }}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#DDE8D8] bg-white px-5 text-xs font-black text-[#0F4A2F] transition hover:bg-[#EEF7ED]"
+                >
+                  {editOpen ? 'Close editor' : 'Edit item / image'}
+                </button>
+
+                <p className="mt-2 max-w-md text-xs font-semibold leading-5 text-farm-muted">
+                  Update the product name, price, category, image URL, or upload a new image without refreshing the full Admin page.
+                </p>
+
+                {item.image_url ? (
+                  <p className="mt-2 truncate rounded-full border border-[#DDE8D8] bg-white px-3 py-2 text-[11px] font-bold text-[#66746B]">
+                    {String(item.image_url)}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {editOpen ? (
+            <div className="mt-4 rounded-[1.5rem] border border-[#DDE8D8] bg-[#FAF8F0] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#DFA75A]">
+                    Edit harvest item
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-farm-muted">
+                    Save product details or upload a cleaner image for the storefront.
+                  </p>
+                </div>
+
+                <span className="w-fit rounded-full bg-[#EAF5E7] px-3 py-1 text-[11px] font-black text-[#0F4A2F]">
+                  No page refresh
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="grid gap-1 text-xs font-black text-[#0F4A2F]">
+                  Name
+                  <input
+                    value={editName}
+                    onChange={(event) => setEditName(event.target.value)}
+                    className="h-11 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-sm font-black text-[#102018] outline-none transition focus:border-[#2D6741]/50 focus:ring-4 focus:ring-[#2D6741]/10"
+                  />
+                </label>
+
+                <label className="grid gap-1 text-xs font-black text-[#0F4A2F]">
+                  Price
+                  <input
+                    type="number"
+                    min="0"
+                    value={editPrice}
+                    onChange={(event) => setEditPrice(event.target.value)}
+                    className="h-11 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-sm font-black text-[#102018] outline-none transition focus:border-[#2D6741]/50 focus:ring-4 focus:ring-[#2D6741]/10"
+                  />
+                </label>
+
+                <label className="grid gap-1 text-xs font-black text-[#0F4A2F]">
+                  Category
+                  <input
+                    value={editCategory}
+                    onChange={(event) => setEditCategory(event.target.value)}
+                    className="h-11 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-sm font-black text-[#102018] outline-none transition focus:border-[#2D6741]/50 focus:ring-4 focus:ring-[#2D6741]/10"
+                  />
+                </label>
+
+                <div className="grid gap-1 text-xs font-black text-[#0F4A2F]">
+                  Upload new image
+                  <label
+                    className={`inline-flex h-11 cursor-pointer items-center justify-center rounded-2xl border border-[#DDE8D8] bg-white px-4 text-sm font-black text-[#0F4A2F] transition hover:bg-[#EEF7ED] ${
+                      actionBusy || imageUploading ? 'pointer-events-none opacity-60' : ''
+                    }`}
+                  >
+                    {imageUploading ? 'Uploading image...' : 'Choose image file'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={actionBusy || imageUploading}
+                      onChange={(event) => {
+                        void uploadProductImageForCard(event.target.files?.[0] || null);
+                        event.currentTarget.value = '';
+                      }}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+
+                <label className="grid gap-1 text-xs font-black text-[#0F4A2F] md:col-span-2">
+                  Image URL
+                  <input
+                    value={editImageUrl}
+                    onChange={(event) => setEditImageUrl(event.target.value)}
+                    placeholder="/product-images/example.svg or https://..."
+                    className="h-11 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-sm font-black text-[#102018] outline-none transition focus:border-[#2D6741]/50 focus:ring-4 focus:ring-[#2D6741]/10"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <ProductActionButton disabled={actionBusy || imageUploading} onClick={saveProductEdits} active>
+                  {imageUploading ? 'Uploading...' : 'Save edits'}
+                </ProductActionButton>
+                <ProductActionButton
+                  disabled={actionBusy || imageUploading}
+                  onClick={() => {
+                    setEditName(String(item.name || ''));
+                    setEditPrice(String(item.price ?? ''));
+                    setEditCategory(String(item.category || ''));
+                    setEditImageUrl(String(item.image_url || ''));
+                    setEditOpen(false);
+                  }}
+                >
+                  Cancel
+                </ProductActionButton>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex min-h-[74px] flex-wrap content-start gap-2">
             <ProductBadge active={isApproved} tone="green">Approved</ProductBadge>
             <ProductBadge active={isRejected} tone="red">Rejected</ProductBadge>
             <ProductBadge active={!isHidden && !isOutOfStock && !isReadySoon} tone="green">Available</ProductBadge>
@@ -857,31 +1138,84 @@ function ProductAdminCard({ product, refresh }: { product: Product; refresh: () 
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[460px] xl:grid-cols-3 xl:justify-end">
-          <ProductActionButton onClick={toggleAvailability}>
-            {item.is_available ? 'Hide availability' : 'Make available'}
-          </ProductActionButton>
-          <ProductActionButton onClick={toggleDeal} active={isDeal}>
-            {isDeal ? 'Remove deal' : 'Toggle deal'}
-          </ProductActionButton>
-          <ProductActionButton onClick={toggleOrganic} active={isOrganic}>
-            {isOrganic ? 'Organic on' : 'Mark organic'}
-          </ProductActionButton>
-          <ProductActionButton onClick={toggleLocal} active={isLocal}>
-            {isLocal ? 'Local on' : 'Mark local'}
-          </ProductActionButton>
-          <ProductActionButton onClick={toggleReadySoon} active={isReadySoon}>
-            {isReadySoon ? 'Ready soon on' : 'Ready soon'}
-          </ProductActionButton>
-          <ProductActionButton onClick={markOutOfStock} active={isOutOfStock}>
-            Out of stock
-          </ProductActionButton>
-          <ProductActionButton onClick={approveProduct} active={isApproved}>
-            Approve
-          </ProductActionButton>
-          <ProductActionButton onClick={rejectProduct} active={isRejected}>
-            Reject
-          </ProductActionButton>
+        <div className="grid gap-3 xl:w-[460px]">
+          <div className="rounded-[1.35rem] border border-[#DDE8D8] bg-[#F4F9F2] p-3">
+            <div className="flex items-end gap-2">
+              <label className="grid flex-1 gap-1 text-xs font-black text-[#0F4A2F]">
+                Restock quantity
+                <input
+                  type="number"
+                  min="1"
+                  inputMode="numeric"
+                  value={stockInput}
+                  onChange={(event) => setStockInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void restockProduct();
+                    }
+                  }}
+                  placeholder="Enter stock"
+                  className="h-11 rounded-2xl border border-[#DDE8D8] bg-white px-4 text-sm font-black text-[#102018] outline-none transition focus:border-[#2D6741]/50 focus:ring-4 focus:ring-[#2D6741]/10"
+                />
+              </label>
+
+              <ProductActionButton disabled={actionBusy} onClick={() => restockProduct()} active={stock > 0 && item.is_available}>
+                Restock
+              </ProductActionButton>
+            </div>
+
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {[5, 10, 25].map((amount) => (
+                <button
+                  key={amount}
+                  type="button"
+                  disabled={actionBusy}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    void restockProduct(amount);
+                  }}
+                  className="min-h-[36px] rounded-full border border-[#DDE8D8] bg-white px-3 text-xs font-black text-[#0F4A2F] transition hover:bg-[#EEF7ED] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  +{amount}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid auto-rows-[44px] gap-2 sm:grid-cols-2 xl:grid-cols-3 xl:justify-end">
+            <ProductActionButton disabled={actionBusy} onClick={toggleAvailability}>
+              {item.is_available ? 'Hide availability' : 'Make available'}
+            </ProductActionButton>
+            <ProductActionButton disabled={actionBusy} onClick={toggleDeal} active={isDeal}>
+              {isDeal ? 'Remove deal' : 'Toggle deal'}
+            </ProductActionButton>
+            <ProductActionButton disabled={actionBusy} onClick={toggleOrganic} active={isOrganic}>
+              {isOrganic ? 'Organic on' : 'Mark organic'}
+            </ProductActionButton>
+            <ProductActionButton disabled={actionBusy} onClick={toggleLocal} active={isLocal}>
+              {isLocal ? 'Local on' : 'Mark local'}
+            </ProductActionButton>
+            <ProductActionButton disabled={actionBusy} onClick={toggleReadySoon} active={isReadySoon}>
+              {isReadySoon ? 'Ready soon on' : 'Ready soon'}
+            </ProductActionButton>
+            <ProductActionButton disabled={actionBusy} onClick={markOutOfStock} active={isOutOfStock}>
+              Out of stock
+            </ProductActionButton>
+            <ProductActionButton disabled={actionBusy} onClick={approveProduct} active={isApproved}>
+              Approve
+            </ProductActionButton>
+            <ProductActionButton disabled={actionBusy} onClick={rejectProduct} active={isRejected}>
+              Reject
+            </ProductActionButton>
+
+            {actionMessage ? (
+              <p className="sm:col-span-2 xl:col-span-3 rounded-2xl border border-[#DDE8D8] bg-[#F4F9F2] px-3 py-2 text-center text-xs font-black text-[#0F4A2F]">
+                {actionMessage}
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
     </article>
@@ -1175,7 +1509,7 @@ function CouponsAdmin({ coupons, refresh }: { coupons: Coupon[]; refresh: () => 
               <div>
                 <p className="font-black text-farm-primaryDark">{cleanText(coupon.code, 'Coupon')}</p>
                 <p className="text-sm font-bold text-farm-muted">
-                  {cleanText(coupon.discount_type)} â€¢ {coupon.discount_value} â€¢ min {formatJmd(coupon.minimum_order || 0)}
+                  {cleanText(coupon.discount_type)} • {coupon.discount_value} • min {formatJmd(coupon.minimum_order || 0)}
                 </p>
               </div>
               <StatusChip status={coupon.is_active ? 'active' : 'inactive'} />
@@ -1208,7 +1542,7 @@ function SupportAdmin({ tickets, refresh }: { tickets: SupportTicket[]; refresh:
                   </div>
 
                   <p className="mt-1 text-sm font-bold text-farm-muted">
-                    Platform-only conversation â€¢ {formatDateTime(ticket.created_at)}
+                    Platform-only conversation • {formatDateTime(ticket.created_at)}
                   </p>
 
                   <p className="mt-3 text-sm leading-6 text-farm-muted">{cleanText(ticket.message, 'No message')}</p>
@@ -1271,7 +1605,7 @@ function FarmersAdmin({
             <Card key={farmer.id}>
               <p className="font-black text-farm-primaryDark">{cleanText(farmer.farm_name, 'Farm')}</p>
               <p className="text-sm font-bold text-farm-muted">
-                {cleanText(farmer.farmer_name, 'Farmer')} â€¢ {cleanText(farmer.parish, 'Parish')} â€¢ Platform contact only
+                {cleanText(farmer.farmer_name, 'Farmer')} • {cleanText(farmer.parish, 'Parish')} • Platform contact only
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1310,7 +1644,7 @@ function FarmersAdmin({
             <Card key={payout.id}>
               <p className="font-black text-farm-primaryDark">{formatJmd(payout.net_amount)}</p>
               <p className="text-sm font-bold text-farm-muted">
-                Order #{shortIdLabel(payout.order_id)} â€¢ Commission {formatJmd(payout.commission_amount)}
+                Order #{shortIdLabel(payout.order_id)} • Commission {formatJmd(payout.commission_amount)}
               </p>
               <div className="mt-2">
                 <StatusChip status={payout.payout_status} />
@@ -1377,7 +1711,7 @@ function AuditAdmin({ audit }: { audit: AuditLogEntry[] }) {
               {cleanText(entry.action, 'Audit event')} on {cleanText(entry.table_name, 'table')}
             </p>
             <p className="mt-1 text-sm font-bold text-farm-muted">
-              {formatDateTime(entry.created_at)} â€¢ {cleanText(entry.admin_email, 'System')}
+              {formatDateTime(entry.created_at)} • {cleanText(entry.admin_email, 'System')}
             </p>
           </Card>
         ))
@@ -1446,8 +1780,12 @@ function TogglePill({
       type="button"
       aria-pressed={Boolean(selected)}
       disabled={disabled}
-      onClick={onClick}
-      className={`rounded-full border px-4 py-2 text-xs font-black transition ${
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!disabled) onClick?.();
+      }}
+      className={`inline-flex min-h-[38px] items-center justify-center whitespace-nowrap rounded-full border px-4 py-2 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2D6741]/15 ${
         selected
           ? 'border-[#0F4A2F] bg-[#0F4A2F] text-white shadow-[0_10px_24px_rgba(15,74,47,0.18)]'
           : 'border-[#DDE8D8] bg-white text-[#0F4A2F] hover:border-[#0F4A2F]/35 hover:bg-[#EEF7ED]'
@@ -1476,12 +1814,16 @@ function ProductActionButton({
       type="button"
       title={title}
       disabled={disabled}
-      onClick={onClick}
-      className={`rounded-full border px-4 py-2.5 text-xs font-black transition ${
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!disabled) void onClick?.();
+      }}
+      className={`inline-flex min-h-[44px] w-full min-w-[142px] items-center justify-center whitespace-nowrap rounded-full border px-4 py-2.5 text-center text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2D6741]/15 ${
         active
           ? 'border-[#0F4A2F] bg-[#0F4A2F] text-white shadow-[0_10px_24px_rgba(15,74,47,0.18)]'
           : 'border-[#DDE8D8] bg-white text-[#0F4A2F] hover:border-[#0F4A2F]/35 hover:bg-[#EEF7ED]'
-      } ${disabled ? 'cursor-not-allowed opacity-45' : ''}`}
+      } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
     >
       {children}
     </button>
