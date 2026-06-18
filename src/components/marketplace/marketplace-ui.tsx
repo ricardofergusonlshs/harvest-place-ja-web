@@ -14,12 +14,16 @@ import {
   Search,
   ShieldCheck,
   ShoppingBag,
+  ShoppingCart,
   Smartphone,
   Sprout,
   Truck,
 } from 'lucide-react';
+
 import { fetchProducts } from '@/lib/services';
 import { formatJmd } from '@/lib/format';
+import { useCart } from '@/components/providers/cart-provider';
+import { canAddToCart, effectivePrice, hasActiveDiscount, originalPrice } from '@/lib/product';
 import type { Product } from '@/lib/types';
 
 const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=com.harvestplaceja.myapp&pli=1';
@@ -28,54 +32,34 @@ const FALLBACK_PRODUCT_IMAGE = '/logo.png';
 const CORRECT_SUPABASE_HOST = 'zvgvvsgjzfygbsqwawoh.supabase.co';
 const WRONG_SUPABASE_HOST = 'zvgvvsgjzfyqbsqwawoh.supabase.co';
 
-function forceProduceImage(product: Product): string {
-  const record = product as Product & Record<string, unknown>;
-
-  const rawUrl =
-    record.image_url ??
-    record.imageUrl ??
-    record.image ??
-    record.photo_url ??
-    record.photoUrl ??
-    '';
-
-  if (typeof rawUrl !== 'string') {
-    return FALLBACK_PRODUCT_IMAGE;
-  }
-
-  const imageUrl = rawUrl.trim();
-
-  if (!imageUrl) {
-    return FALLBACK_PRODUCT_IMAGE;
-  }
-
-  // Fix the old wrong Supabase project domain without changing the database.
-  if (imageUrl.includes(WRONG_SUPABASE_HOST)) {
-    return imageUrl.replace(WRONG_SUPABASE_HOST, CORRECT_SUPABASE_HOST);
-  }
-
-  // Keep valid full URLs exactly as they are.
-  if (imageUrl.startsWith('https://') || imageUrl.startsWith('http://')) {
-    return imageUrl;
-  }
-
-  // Keep valid local public paths if any are used.
-  if (imageUrl.startsWith('/')) {
-    return imageUrl;
-  }
-
-  // Convert storage paths like "products/ackee.jpg" into a full Supabase public URL.
-  return `https://${CORRECT_SUPABASE_HOST}/storage/v1/object/public/product-images/${imageUrl}`;
-}
-
-const HERO_IMAGE = '/marketplace-hero-clean.png';
-const HERO_IMAGE_FALLBACKS = ['/elite/hero-produce-box.png', '/elite/weekly-box-banner.png', FALLBACK_PRODUCT_IMAGE];
-const FARM_STORY_IMAGE = '/elite/farmer-story.png';
-const WEEKLY_BOX_IMAGE = '/elite/weekly-box-banner.png';
-const READY_SOON_IMAGE = '/elite/ready-soon-card.png';
+const HERO_IMAGE = '/elite/elite-home-hero.png';
+const FARM_STORY_IMAGE = '/elite/elite-farm-story.png';
+const WEEKLY_BOX_IMAGE = '/elite/elite-weekly-box-banner.png';
 const APP_PHONE_IMAGE = '/elite/harvestplaceja-app-phone.png';
+const ANDROID_BACKGROUND_IMAGE = '/elite/ANDROID_BACKGROUND_IMAGE.png';
 const GOOGLE_PLAY_BADGE_IMAGE = '/elite/google-play-badge.png';
 const CERTIFIED_BADGE_IMAGE = '/elite/certified-jamaican-badge.png';
+
+const ANDROID_BACKGROUND_FALLBACKS = [
+  '/elite/android-image.png',
+  '/elite/elite-app-promo-banner.png',
+  FARM_STORY_IMAGE,
+  HERO_IMAGE,
+  FALLBACK_PRODUCT_IMAGE,
+];
+const SHOP_HERO_IMAGE = '/elite/elite-shop-hero-bg.png';
+const BACKGROUND_PATTERN_IMAGE = '/elite/elite-background-pattern.png';
+
+const HERO_IMAGE_FALLBACKS = [
+  '/marketplace-hero-clean.png',
+  '/elite/hero-produce-box.png',
+  '/elite/weekly-box-banner.png',
+  FALLBACK_PRODUCT_IMAGE,
+];
+
+const FARM_STORY_FALLBACKS = ['/elite/farmer-story.png', HERO_IMAGE, FALLBACK_PRODUCT_IMAGE];
+const WEEKLY_BOX_FALLBACKS = ['/elite/weekly-box-banner.png', HERO_IMAGE, FALLBACK_PRODUCT_IMAGE];
+const SHOP_HERO_FALLBACKS = [HERO_IMAGE, '/elite/hero-produce-box.png', FALLBACK_PRODUCT_IMAGE];
 
 export type MarketMode = 'home' | 'shop';
 type ProductSort = 'featured' | 'price-low' | 'price-high' | 'stock';
@@ -103,45 +87,65 @@ type FallbackProduce = {
   image: string;
 };
 
+const productImageMap: Record<string, string> = {
+  ginger: '/product-images/product-ginger.png',
+  ackee: '/product-images/product-ackee.png',
+  callaloo: '/product-images/product-callaloo.png',
+  'sweet potato': '/product-images/product-sweet-potato.png',
+  garlic: '/product-images/product-garlic.png',
+  thyme: '/product-images/product-thyme.png',
+  okra: '/product-images/product-okra.png',
+  lime: '/product-images/product-lime.png',
+  pineapple: '/product-images/product-pineapple.png',
+  avocado: '/product-images/product-avocado.png',
+  soursop: '/product-images/product-soursop.png',
+  'sweet sop': '/product-images/product-soursop.png',
+  melon: '/product-images/product-melon.png',
+  beetroot: '/product-images/product-beetroot.png',
+  beet: '/product-images/product-beetroot.png',
+  onion: '/product-images/product-onion.png',
+  potato: '/product-images/product-potato.png',
+};
+
 const trustChips: TrustChip[] = [
-  { label: 'Farm Fresh', icon: Leaf },
-  { label: 'Sustainable', icon: Sprout },
-  { label: 'Secure Ordering', icon: ShieldCheck },
-  { label: 'Fast Delivery', icon: Truck },
+  { label: 'Farm fresh', icon: Leaf },
+  { label: 'Jamaican grown', icon: Sprout },
+  { label: 'Secure ordering', icon: ShieldCheck },
+  { label: 'Pickup or delivery', icon: Truck },
 ];
 
 const shortcutCards: ShortcutCard[] = [
   {
     title: 'Fresh Picks',
-    text: 'Shop our hand-selected farm-fresh produce.',
+    text: 'Premium produce selected for this week’s harvest.',
     label: 'Shop Now',
     href: '/shop',
     icon: Leaf,
   },
   {
     title: 'Ready Soon',
-    text: "See what's coming fresh this week.",
+    text: "See what’s coming fresh from the farm next.",
     label: "See What's Coming",
     href: '/ready-soon',
     icon: CalendarDays,
   },
   {
     title: 'Weekly Box Deals',
-    text: 'Save more with our curated harvest boxes.',
-    label: 'Explore Boxes',
+    text: 'Curated harvest boxes packed for value and freshness.',
+    label: 'Build Your Box',
     href: '/my-box',
     icon: Package,
   },
   {
     title: 'Our Farm Story',
-    text: 'Rooted in Jamaica. Grown with purpose.',
+    text: 'Rooted in Jamaica. Grown with care and purpose.',
     label: 'Learn Our Story',
     href: '#farm-story',
     icon: Sprout,
   },
   {
     title: 'Use the App',
-    text: 'Shop, track, and get fresh on the go.',
+    text: 'Shop, request items, and track orders on the go.',
     label: 'Get the App',
     href: ANDROID_APP_URL,
     icon: Smartphone,
@@ -150,23 +154,65 @@ const shortcutCards: ShortcutCard[] = [
 ];
 
 const fallbackProduce: FallbackProduce[] = [
-  { name: 'Oregano', category: 'Herbs', price: 150, unit: 'bunch', stock: 8, image: '/categories/herbs.jpg' },
-  { name: 'Garlic', category: 'Vegetables', price: 300, unit: 'lb', stock: 9, image: '/categories/vegetables.jpg' },
-  { name: 'Sweet Potato', category: 'Ground Provisions', price: 400, unit: 'lb', stock: 14, image: '/categories/roots.jpg' },
-  { name: 'Sweet Sop', category: 'Fruit', price: 100, unit: 'each', stock: 22, image: '/categories/fruits.jpg' },
-  { name: 'Potato', category: 'Vegetables', price: 500, unit: 'bag', stock: 11, image: '/categories/vegetables.jpg' },
-  { name: 'Melon', category: 'Fruit', price: 150, unit: 'each', stock: 9, image: '/categories/fruits.jpg' },
+  { name: 'Ginger', category: 'Ground Provisions', price: 500, unit: 'each', stock: 1, image: '/product-images/product-ginger.png' },
+  { name: 'Garlic', category: 'Vegetables', price: 300, unit: 'lb', stock: 7, image: '/product-images/product-garlic.png' },
+  { name: 'Sweet Potato', category: 'Ground Provisions', price: 400, unit: 'lb', stock: 13, image: '/product-images/product-sweet-potato.png' },
+  { name: 'Ackee', category: 'Fruit', price: 400, unit: 'dozen', stock: 5, image: '/product-images/product-ackee.png' },
+  { name: 'Okra', category: 'Vegetables', price: 300, unit: 'dozen', stock: 11, image: '/product-images/product-okra.png' },
+  { name: 'Pineapple', category: 'Fruit', price: 300, unit: 'each', stock: 12, image: '/product-images/product-pineapple.png' },
 ];
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
 
-function productImage(product: Product) {
-  const imageUrl = forceProduceImage(product);
-  return imageUrl || FALLBACK_PRODUCT_IMAGE;
+function normalizeName(value: string) {
+  return value.trim().toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ');
 }
 
+function localProductFallback(product: Product) {
+  const name = normalizeName(String(product.name || ''));
+  if (productImageMap[name]) return productImageMap[name];
+
+  const partialMatch = Object.entries(productImageMap).find(([key]) => name.includes(key));
+  return partialMatch?.[1] || FALLBACK_PRODUCT_IMAGE;
+}
+
+function forceProduceImage(product: Product): string {
+  const record = product as Product & Record<string, unknown>;
+
+  const rawUrl =
+    record.image_url ??
+    record.imageUrl ??
+    record.image ??
+    record.photo_url ??
+    record.photoUrl ??
+    '';
+
+  if (typeof rawUrl !== 'string') {
+    return localProductFallback(product);
+  }
+
+  const imageUrl = rawUrl.trim();
+
+  if (!imageUrl) {
+    return localProductFallback(product);
+  }
+
+  if (imageUrl.includes(WRONG_SUPABASE_HOST)) {
+    return imageUrl.replace(WRONG_SUPABASE_HOST, CORRECT_SUPABASE_HOST);
+  }
+
+  if (imageUrl.startsWith('https://') || imageUrl.startsWith('http://')) {
+    return imageUrl;
+  }
+
+  if (imageUrl.startsWith('/')) {
+    return imageUrl;
+  }
+
+  return `https://${CORRECT_SUPABASE_HOST}/storage/v1/object/public/product-images/${imageUrl}`;
+}
 
 function productAvailable(product: Product) {
   return Number(product.stock_quantity || 0) > 0 && product.is_available && product.product_status !== 'hidden';
@@ -236,22 +282,23 @@ function SafePublicImage({
   );
 }
 
-function ProductImage({ product, className = 'object-contain p-4' }: { product: Product; className?: string }) {
+function ProductImage({ product, className = 'object-contain p-5' }: { product: Product; className?: string }) {
+  const fallback = localProductFallback(product);
   const [src, setSrc] = useState(forceProduceImage(product));
 
   useEffect(() => {
     setSrc(forceProduceImage(product));
-  }, [product.image_url]);
+  }, [product.image_url, product.name]);
 
   return (
     <Image
       src={src}
       alt={product.name}
       fill
-      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px"
+      sizes="(max-width: 640px) 88vw, (max-width: 1024px) 40vw, 260px"
       className={className}
       unoptimized={src.startsWith('http')}
-      onError={() => setSrc(FALLBACK_PRODUCT_IMAGE)}
+      onError={() => setSrc(src === fallback ? FALLBACK_PRODUCT_IMAGE : fallback)}
     />
   );
 }
@@ -260,7 +307,7 @@ function PrimaryButton({ href, children }: { href: string; children: ReactNode }
   return (
     <Link
       href={href}
-      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#183B28] px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_rgba(24,59,40,0.22)] transition hover:-translate-y-0.5 hover:bg-[#2D6741]"
+      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#123D28] px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_rgba(18,61,40,0.25)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#2D6741] hover:shadow-[0_24px_60px_rgba(18,61,40,0.32)]"
     >
       {children}
     </Link>
@@ -271,7 +318,7 @@ function SecondaryButton({ href, children }: { href: string; children: ReactNode
   return (
     <Link
       href={href}
-      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-[#DFA75A]/60 bg-white/82 px-6 py-3 text-sm font-black text-[#9B681C] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#FFF3D9]"
+      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-[#DFA75A]/65 bg-white/88 px-6 py-3 text-sm font-black text-[#9B681C] shadow-sm backdrop-blur transition duration-300 hover:-translate-y-0.5 hover:bg-[#FFF3D9] hover:text-[#70460E]"
     >
       {children}
     </Link>
@@ -284,7 +331,7 @@ function ExternalButton({ href, children }: { href: string; children: ReactNode 
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#183B28] px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_rgba(24,59,40,0.22)] transition hover:-translate-y-0.5 hover:bg-[#2D6741]"
+      className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#123D28] px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_rgba(18,61,40,0.25)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#2D6741]"
     >
       {children}
     </a>
@@ -303,11 +350,11 @@ function SectionHeading({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        {eyebrow ? <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#DFA75A]">{eyebrow}</p> : null}
-        <h2 className="font-serif text-3xl font-black tracking-[-0.035em] text-[#183B28] sm:text-[2.35rem]">{title}</h2>
-        {subtitle ? <p className="mt-1 text-sm font-semibold text-[#5F6A62]">{subtitle}</p> : null}
+        {eyebrow ? <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#DFA75A]">{eyebrow}</p> : null}
+        <h2 className="font-serif text-3xl font-black tracking-[-0.04em] text-[#123D28] sm:text-[2.45rem]">{title}</h2>
+        {subtitle ? <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-[#5F6A62]">{subtitle}</p> : null}
       </div>
       {action}
     </div>
@@ -363,7 +410,7 @@ function HomeLayout({ products, loading, notice }: { products: Product[]; loadin
   const previewProducts = products.slice(0, 6);
 
   return (
-    <div className="bg-[#FAF8F0] text-[#183B28]">
+    <div className="bg-[#FAF8F0] text-[#123D28]">
       <HeroSection />
       {notice ? <Notice>{notice}</Notice> : null}
       <ShortcutSection />
@@ -377,57 +424,65 @@ function HomeLayout({ products, loading, notice }: { products: Product[]; loadin
 
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-[linear-gradient(180deg,#FFFDF7_0%,#FAF8F0_58%,#EAF5E7_100%)]">
-      <div className="mx-auto max-w-[1450px] px-4 pb-5 pt-7 sm:px-6 sm:pb-6 sm:pt-8 lg:px-10 lg:pb-8 lg:pt-8">
-        <div className="relative min-h-[560px] overflow-hidden rounded-[30px] border border-[#D8E5D4] bg-[#FFFDF7] shadow-[0_24px_70px_rgba(24,59,40,0.10)] sm:min-h-[590px] lg:min-h-[520px] xl:min-h-[540px]">
-          <div className="absolute -left-24 top-12 h-72 w-72 rounded-full bg-[#FFF3D9]/55 blur-3xl" />
-          <div className="absolute right-[-100px] top-[-90px] h-72 w-72 rounded-full bg-[#EAF5E7] blur-2xl" />
+    <section className="relative overflow-hidden bg-[linear-gradient(180deg,#FFFDF7_0%,#FAF8F0_56%,#EAF5E7_100%)]">
+      <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: `url(${BACKGROUND_PATTERN_IMAGE})`, backgroundSize: '520px 520px' }} />
+      <div className="mx-auto max-w-[1450px] px-4 pb-6 pt-7 sm:px-6 lg:px-10 lg:pb-9 lg:pt-9">
+        <div className="relative min-h-[610px] overflow-hidden rounded-[34px] border border-[#D8E5D4] bg-[#FFFDF7] shadow-[0_30px_90px_rgba(18,61,40,0.12)] sm:min-h-[620px] lg:min-h-[560px]">
+          <div className="absolute -left-24 top-12 h-80 w-80 rounded-full bg-[#FFF3D9]/65 blur-3xl" />
+          <div className="absolute right-[-100px] top-[-90px] h-80 w-80 rounded-full bg-[#EAF5E7] blur-2xl" />
 
-          {/* Full hero image layer: spreads across the card and fades into the content */}
           <div className="absolute inset-0 hidden overflow-hidden lg:block">
             <SafePublicImage
               src={HERO_IMAGE}
               fallbackSrcs={HERO_IMAGE_FALLBACKS}
-              alt="Fresh Jamaican vegetables in a basket"
+              alt="Premium Jamaican produce basket"
               priority
               sizes="1450px"
               className="object-cover object-[82%_center]"
             />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,#FFFDF7_0%,rgba(255,253,247,0.98)_23%,rgba(255,253,247,0.82)_39%,rgba(255,253,247,0.22)_59%,rgba(255,253,247,0)_82%)]" />
-            <div className="absolute inset-y-0 left-0 w-[60%] bg-[radial-gradient(circle_at_8%_28%,rgba(255,243,217,0.52),transparent_36%)]" />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#FFFDF7]/5 via-transparent to-[#183B28]/8" />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,#FFFDF7_0%,rgba(255,253,247,0.98)_24%,rgba(255,253,247,0.82)_42%,rgba(255,253,247,0.20)_62%,rgba(255,253,247,0)_86%)]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#123D28]/10" />
           </div>
 
-          {/* Mobile/tablet image layer */}
-          <div className="absolute inset-x-0 bottom-0 block h-[330px] overflow-hidden lg:hidden">
+          <div className="absolute inset-x-0 bottom-0 block h-[350px] overflow-hidden lg:hidden">
             <SafePublicImage
               src={HERO_IMAGE}
               fallbackSrcs={HERO_IMAGE_FALLBACKS}
-              alt="Fresh Jamaican vegetables in a basket"
+              alt="Premium Jamaican produce basket"
               priority
               sizes="100vw"
               className="object-cover object-right"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#FFFDF7] via-[#FFFDF7]/76 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#FFFDF7] via-[#FFFDF7]/82 to-transparent" />
           </div>
 
-          <div className="relative z-20 flex min-h-[560px] flex-col justify-start px-6 py-8 sm:min-h-[590px] sm:px-8 sm:py-10 lg:min-h-[520px] lg:w-[52%] lg:justify-center lg:px-10 lg:py-12 xl:min-h-[540px] xl:w-[50%] xl:px-11">
-            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#EAF5E7] px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-[#2D6741] ring-1 ring-[#2D6741]/10 sm:px-5">
+          <div className="absolute right-6 top-6 z-30 hidden h-[96px] w-[96px] rounded-full bg-white/20 p-1 shadow-[0_18px_45px_rgba(18,61,40,0.16)] backdrop-blur-[1px] sm:block lg:right-10 lg:top-9 lg:h-[136px] lg:w-[136px] xl:right-12 xl:top-10 xl:h-[150px] xl:w-[150px]">
+            <Image
+              src={CERTIFIED_BADGE_IMAGE}
+              alt="100% local Jamaican badge"
+              fill
+              sizes="150px"
+              className="object-contain"
+              unoptimized
+            />
+          </div>
+
+          <div className="relative z-20 flex min-h-[610px] flex-col justify-start px-6 py-8 sm:min-h-[620px] sm:px-8 sm:py-10 lg:min-h-[560px] lg:w-[52%] lg:justify-center lg:px-11 lg:py-12">
+            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#EAF5E7] px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#2D6741] ring-1 ring-[#2D6741]/10">
               <Leaf className="h-3.5 w-3.5" />
               Grown with care in Jamaica
             </span>
 
-            <h1 className="mt-5 max-w-[650px] font-serif text-[clamp(3.25rem,5.8vw,5.35rem)] font-black leading-[0.93] tracking-[-0.058em] text-[#183B28]">
+            <h1 className="mt-5 max-w-[720px] font-serif text-[clamp(3.15rem,5.7vw,5.8rem)] font-black leading-[0.9] tracking-[-0.065em] text-[#123D28]">
               Fresh From
               <br />
               Our Farm To
               <br />
               Your Table
-              <Leaf className="ml-2 inline h-8 w-8 text-[#2D6741]/70 sm:h-9 sm:w-9" />
             </h1>
 
-            <p className="mt-5 max-w-[520px] text-base font-semibold leading-7 text-[#5F6A62] sm:text-[17px] sm:leading-8">
-              Hand-picked. Naturally grown. Always fresh. Premium Jamaican produce delivered with care.
+            <p className="mt-5 max-w-[560px] text-base font-semibold leading-7 text-[#4F5D53] sm:text-[17px] sm:leading-8">
+              Hand-picked Jamaican produce, curated weekly boxes, and secure local ordering built for fresh, simple farm-to-table living.
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -442,7 +497,7 @@ function HeroSection() {
               </SecondaryButton>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-3 text-[11px] font-black text-[#5F6A62] sm:flex sm:flex-wrap sm:gap-5">
+            <div className="mt-6 grid grid-cols-2 gap-3 text-[11px] font-black uppercase tracking-[0.08em] text-[#5F6A62] sm:flex sm:flex-wrap sm:gap-5">
               {trustChips.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -455,20 +510,6 @@ function HeroSection() {
             </div>
           </div>
 
-          {/* Certified Jamaican badge PNG */}
-          <div className="absolute right-4 top-4 z-30 hidden sm:block lg:right-7 lg:top-7">
-            <div className="relative h-[110px] w-[110px] rounded-full lg:h-[128px] lg:w-[128px]">
-              <Image
-                src={CERTIFIED_BADGE_IMAGE}
-                alt="Certified Jamaican premium quality badge"
-                fill
-                priority
-                sizes="(max-width: 1024px) 110px, 128px"
-                className="object-contain drop-shadow-[0_16px_34px_rgba(24,59,40,0.32)]"
-                unoptimized
-              />
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -477,20 +518,22 @@ function HeroSection() {
 
 function ShortcutSection() {
   return (
-    <section className="relative z-10 mx-auto -mt-3 max-w-[1450px] px-4 pb-7 sm:px-6 lg:px-10">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <section className="relative z-10 mx-auto -mt-4 max-w-[1450px] px-4 pb-8 sm:px-6 lg:px-10">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {shortcutCards.map((card) => {
           const Icon = card.icon;
           const content = (
-            <div className="group flex h-full min-h-[122px] flex-col rounded-[22px] border border-[#D8E5D4] bg-white/92 p-4 shadow-[0_18px_55px_rgba(24,59,40,0.08)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_24px_70px_rgba(24,59,40,0.12)]">
-              <div className="grid h-11 w-11 place-items-center rounded-full bg-[#EAF5E7] text-[#2D6741] ring-1 ring-[#2D6741]/10">
-                <Icon className="h-5 w-5" />
+            <div className="group flex h-full min-h-[140px] flex-col overflow-hidden rounded-[26px] border border-[#D8E5D4] bg-white/92 p-5 shadow-[0_20px_60px_rgba(18,61,40,0.08)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_28px_80px_rgba(18,61,40,0.14)]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#EAF5E7] text-[#2D6741] ring-1 ring-[#2D6741]/10">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-[#DFA75A] transition group-hover:translate-x-1" />
               </div>
-              <h3 className="mt-3 font-serif text-lg font-black leading-tight text-[#183B28]">{card.title}</h3>
-              <p className="mt-1 min-h-[34px] text-[11px] font-semibold leading-4 text-[#5F6A62]">{card.text}</p>
-              <span className="mt-auto inline-flex items-center gap-2 pt-3 text-xs font-black text-[#183B28]">
+              <h3 className="mt-4 font-serif text-xl font-black leading-tight text-[#123D28]">{card.title}</h3>
+              <p className="mt-2 min-h-[42px] text-xs font-semibold leading-5 text-[#5F6A62]">{card.text}</p>
+              <span className="mt-auto inline-flex items-center gap-2 pt-4 text-xs font-black uppercase tracking-[0.08em] text-[#123D28]">
                 {card.label}
-                <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
               </span>
             </div>
           );
@@ -512,40 +555,50 @@ function ShortcutSection() {
 
 function FarmStorySection() {
   return (
-    <section id="farm-story" className="mx-auto max-w-[1450px] px-4 pb-7 sm:px-6 lg:px-10">
-      <div className="grid overflow-hidden rounded-[28px] border border-[#D8E5D4] bg-[#FFFDF7] shadow-[0_22px_70px_rgba(24,59,40,0.08)] lg:grid-cols-[0.96fr_1.04fr]">
-        <div className="relative min-h-[270px] overflow-hidden lg:min-h-[300px] xl:min-h-[330px]">
+    <section id="farm-story" className="mx-auto max-w-[1450px] px-4 pb-8 sm:px-6 lg:px-10">
+      <div className="grid overflow-hidden rounded-[32px] border border-[#D8E5D4] bg-[#FFFDF7] shadow-[0_26px_80px_rgba(18,61,40,0.09)] lg:grid-cols-[0.98fr_1.02fr]">
+        <div className="relative min-h-[300px] overflow-hidden lg:min-h-[390px]">
           <SafePublicImage
             src={FARM_STORY_IMAGE}
-            fallbackSrcs={[HERO_IMAGE]}
+            fallbackSrcs={FARM_STORY_FALLBACKS}
             alt="Jamaican farm fields and fresh produce"
-            sizes="(min-width: 1024px) 650px, 100vw"
+            sizes="(min-width: 1024px) 690px, 100vw"
             className="object-cover object-center transition duration-700 hover:scale-105"
           />
+
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#FFFDF7]/55 lg:bg-gradient-to-r" />
+
+          <div className="absolute bottom-6 left-6 z-20 rounded-3xl border border-white/45 bg-white/86 px-5 py-4 shadow-[0_22px_60px_rgba(18,61,40,0.16)] backdrop-blur-md">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9B681C]">
+              Premium local market
+            </p>
+            <p className="mt-1 text-sm font-black text-[#123D28]">
+              Fresh • Local • Jamaican
+            </p>
+          </div>
         </div>
 
-        <div className="relative flex items-center overflow-hidden px-6 py-7 sm:px-9 sm:py-8 lg:px-10">
-          <div className="absolute -right-20 top-8 h-72 w-72 rounded-full bg-[#EAF5E7]/80" />
-          <div className="absolute right-8 bottom-4 hidden text-[#2D6741]/[0.05] lg:block">
-            <Leaf className="h-48 w-48" />
+        <div className="relative flex items-center overflow-hidden px-6 py-8 sm:px-9 lg:px-12">
+          <div className="absolute -right-24 top-8 h-80 w-80 rounded-full bg-[#EAF5E7]/90" />
+          <div className="absolute right-10 bottom-4 hidden text-[#2D6741]/[0.045] lg:block">
+            <Leaf className="h-52 w-52" />
           </div>
 
           <div className="relative z-10 max-w-2xl">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#DFA75A]">Our farm, our promise.</p>
-            <h2 className="mt-3 max-w-xl font-serif text-3xl font-black leading-[1.04] tracking-[-0.035em] text-[#183B28] sm:text-4xl lg:text-[2.55rem]">
+            <h2 className="mt-3 max-w-xl font-serif text-3xl font-black leading-[1.02] tracking-[-0.04em] text-[#123D28] sm:text-4xl lg:text-[2.8rem]">
               Rooted in Jamaica. Grown with Purpose.
             </h2>
             <p className="mt-4 text-sm font-semibold leading-7 text-[#4F5D53] sm:text-base sm:leading-8">
-              We are a family-run farm committed to growing premium, chemical-conscious produce using sustainable methods that respect our land and nourish our community.
+              We are building a premium local market experience around fresh produce, clear ordering, trusted fulfillment, and a stronger connection between Jamaican farms and families.
             </p>
             <p className="mt-4 text-sm font-semibold leading-7 text-[#4F5D53] sm:text-base sm:leading-8">
-              From our fields in Jamaica to your table, we promise freshness, quality, and a farm experience you can trust.
+              Every section of the marketplace is designed to feel clean, safe, modern, and still deeply Jamaican.
             </p>
-            <div className="mt-5">
-              <PrimaryButton href="#farm-story">
-                <Leaf className="h-4 w-4" />
-                Explore Our Farm
+            <div className="mt-6">
+              <PrimaryButton href="/my-box">
+                <Download className="h-4 w-4" />
+                Build Your Box
               </PrimaryButton>
             </div>
           </div>
@@ -557,12 +610,13 @@ function FarmStorySection() {
 
 function FreshFromFarmSection({ products, loading }: { products: Product[]; loading: boolean }) {
   return (
-    <section className="mx-auto max-w-[1450px] px-4 pb-7 sm:px-6 lg:px-10">
+    <section className="mx-auto max-w-[1450px] px-4 pb-8 sm:px-6 lg:px-10">
       <SectionHeading
-        title="Fresh From The Farm"
-        subtitle="Hand-picked. Naturally grown. Always fresh."
+        eyebrow="Fresh from the farm"
+        title="Premium picks for your table"
+        subtitle="Clean product cards, stronger images, clearer stock, and faster request actions."
         action={
-          <Link href="/shop" className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black text-[#183B28] transition hover:bg-white">
+          <Link href="/shop" className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black text-[#123D28] transition hover:bg-white">
             View All Products
             <ArrowRight className="h-4 w-4" />
           </Link>
@@ -573,39 +627,103 @@ function FreshFromFarmSection({ products, loading }: { products: Product[]; load
         {loading && products.length === 0
           ? Array.from({ length: 6 }).map((_, index) => <ProductSkeleton key={`product-skeleton-${index}`} />)
           : products.length
-            ? products.map((product) => <LiveProductCard key={product.id} product={product} />)
+            ? products.map((product) => <LiveProductCard key={product.id} product={product} compact />)
             : fallbackProduce.map((item) => <FallbackProductCard key={item.name} item={item} />)}
       </div>
     </section>
   );
 }
 
-function LiveProductCard({ product }: { product: Product }) {
+function LiveProductCard({ product, compact = false }: { product: Product; compact?: boolean }) {
+  const { addToCart } = useCart();
+  const [added, setAdded] = useState(false);
+  const available = canAddToCart(product);
+  const stock = stockLabel(product);
+  const currentPrice = effectivePrice(product);
+  const oldPrice = originalPrice(product);
+  const discounted = hasActiveDiscount(product);
+
+  function handleAddToBox() {
+    if (!available) return;
+
+    addToCart(product, 1);
+    setAdded(true);
+    window.setTimeout(() => setAdded(false), 1400);
+  }
+
   return (
-    <article className="group overflow-hidden rounded-[21px] border border-[#D8E5D4] bg-white shadow-[0_12px_34px_rgba(24,59,40,0.075)] transition hover:-translate-y-1 hover:shadow-[0_22px_62px_rgba(24,59,40,0.13)]">
-      <Link href={`/product/${product.id}`} className="relative block h-36 bg-[#F7FBF5]">
-        <ProductImage product={product} />
+    <article className="group flex h-full flex-col overflow-hidden rounded-[22px] border border-[#D8E5D4] bg-white shadow-[0_10px_28px_rgba(18,61,40,0.07)] transition duration-300 hover:-translate-y-0.5 hover:border-[#BFD5BC] hover:shadow-[0_18px_44px_rgba(18,61,40,0.13)]">
+      <Link href={`/product/${product.id}`} className={cx('relative block overflow-hidden bg-[#F7FBF5]', compact ? 'h-44' : 'h-52')}>
+        <ProductImage product={product} className="object-contain p-4 transition duration-300 group-hover:scale-[1.04]" />
+
+        <div className="absolute left-3 top-3 rounded-full bg-white/92 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-[#2D6741] shadow-sm backdrop-blur">
+          {product.category || 'Fresh'}
+        </div>
+
+        {discounted ? (
+          <div className="absolute right-3 top-3 rounded-full bg-[#DFA75A] px-3 py-1 text-[10px] font-black text-[#123D28] shadow-sm">
+            Deal
+          </div>
+        ) : null}
       </Link>
 
-      <div className="p-4">
-        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#DFA75A]">{product.category || 'Fresh produce'}</p>
-        <Link href={`/product/${product.id}`} className="mt-1 line-clamp-1 block text-base font-black text-[#183B28] hover:text-[#2D6741]">
+      <div className="flex flex-1 flex-col p-4">
+        <Link href={`/product/${product.id}`} className="line-clamp-2 min-h-[48px] text-[17px] font-black leading-6 text-[#123D28] transition hover:text-[#2D6741] hover:underline">
           {product.name}
         </Link>
-        <p className="mt-1 text-sm font-bold text-[#1E2A21]">
-          {formatJmd(Number(product.price || 0))} <span className="text-xs font-semibold text-[#5F6A62]">/ {product.unit || 'each'}</span>
+
+        <div className="mt-2 flex items-baseline gap-2">
+          <span className="text-xl font-black tracking-[-0.03em] text-[#111827]">
+            {formatJmd(currentPrice)}
+          </span>
+          <span className="text-xs font-semibold text-[#5F6A62]">/ {product.unit || 'each'}</span>
+        </div>
+
+        {discounted ? (
+          <p className="mt-1 text-xs font-bold text-[#5F6A62]">
+            Was <span className="line-through">{formatJmd(oldPrice)}</span>
+          </p>
+        ) : null}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className={cx('inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black', available ? 'bg-[#EAF5E7] text-[#2D6741]' : 'bg-[#FFF3D9] text-[#9B681C]')}>
+            <span className={cx('h-2 w-2 rounded-full', available ? 'bg-[#2D6741]' : 'bg-[#DFA75A]')} />
+            {stock}
+          </span>
+          <span className="rounded-full bg-[#FFFDF7] px-3 py-1 text-xs font-black text-[#5F6A62] ring-1 ring-[#D8E5D4]">
+            Local farm pick
+          </span>
+        </div>
+
+        <p className="mt-3 text-xs font-semibold leading-5 text-[#5F6A62]">
+          Farm pickup available • Delivery confirmed at checkout
         </p>
-        <p className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-[#5F6A62]">
-          <span className="h-2 w-2 rounded-full bg-[#2D6741]" />
-          {stockLabel(product)}
-        </p>
-        <Link
-          href={`/product/${product.id}`}
-          className="mt-3 flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-[#2D6741] px-4 py-2 text-xs font-black text-white transition hover:bg-[#183B28]"
-        >
-          <ShoppingBag className="h-4 w-4" />
-          Request Item
-        </Link>
+
+        <div className="mt-auto grid gap-2 pt-4">
+          <button
+            type="button"
+            onClick={handleAddToBox}
+            disabled={!available}
+            className={cx(
+              'flex min-h-[42px] w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-black shadow-sm transition',
+              available
+                ? added
+                  ? 'bg-[#2D6741] text-white'
+                  : 'bg-[#FFD66B] text-[#123D28] hover:bg-[#F7C948]'
+                : 'cursor-not-allowed bg-[#E5E7EB] text-[#6B7280]'
+            )}
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {available ? (added ? 'Added to Box' : 'Add to Box') : 'Unavailable'}
+          </button>
+
+          <Link
+            href={`/product/${product.id}`}
+            className="flex min-h-[38px] items-center justify-center rounded-full border border-[#D8E5D4] bg-white px-4 py-2 text-xs font-black text-[#123D28] transition hover:bg-[#F4F9F2]"
+          >
+            View details
+          </Link>
+        </div>
       </div>
     </article>
   );
@@ -613,18 +731,25 @@ function LiveProductCard({ product }: { product: Product }) {
 
 function FallbackProductCard({ item }: { item: FallbackProduce }) {
   return (
-    <article className="overflow-hidden rounded-[21px] border border-[#D8E5D4] bg-white shadow-[0_12px_34px_rgba(24,59,40,0.075)]">
-      <div className="relative h-36 bg-[#F7FBF5]">
-        <Image src={item.image} alt={item.name} fill sizes="240px" className="object-contain p-4" unoptimized />
-      </div>
-      <div className="p-4">
-        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#DFA75A]">{item.category}</p>
-        <h3 className="mt-1 text-base font-black text-[#183B28]">{item.name}</h3>
-        <p className="mt-1 text-sm font-bold text-[#1E2A21]">{formatJmd(item.price)} <span className="text-xs font-semibold text-[#5F6A62]">/ {item.unit}</span></p>
-        <p className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-[#5F6A62]"><span className="h-2 w-2 rounded-full bg-[#2D6741]" />{item.stock} in stock</p>
-        <Link href="/shop" className="mt-3 flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-[#2D6741] px-4 py-2 text-xs font-black text-white transition hover:bg-[#183B28]">
-          <ShoppingBag className="h-4 w-4" />
-          Request Item
+    <article className="flex h-full flex-col overflow-hidden rounded-[22px] border border-[#D8E5D4] bg-white shadow-[0_10px_28px_rgba(18,61,40,0.07)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(18,61,40,0.13)]">
+      <Link href="/shop" className="relative block h-52 overflow-hidden bg-[#F7FBF5]">
+        <Image src={item.image} alt={item.name} fill sizes="260px" className="object-contain p-4 transition duration-300 hover:scale-[1.04]" unoptimized />
+        <div className="absolute left-3 top-3 rounded-full bg-white/92 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-[#2D6741] shadow-sm backdrop-blur">
+          {item.category}
+        </div>
+      </Link>
+
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="line-clamp-2 min-h-[48px] text-[17px] font-black leading-6 text-[#123D28]">{item.name}</h3>
+        <p className="mt-2 text-xl font-black tracking-[-0.03em] text-[#111827]">
+          {formatJmd(item.price)} <span className="text-xs font-semibold text-[#5F6A62]">/ {item.unit}</span>
+        </p>
+        <p className="mt-3 inline-flex w-fit items-center gap-2 rounded-full bg-[#EAF5E7] px-3 py-1 text-xs font-black text-[#2D6741]"><span className="h-2 w-2 rounded-full bg-[#2D6741]" />{item.stock} in stock</p>
+        <p className="mt-3 text-xs font-semibold leading-5 text-[#5F6A62]">Farm pickup available • Delivery confirmed at checkout</p>
+
+        <Link href="/shop" className="mt-auto flex min-h-[42px] items-center justify-center gap-2 rounded-full bg-[#FFD66B] px-4 py-2 text-sm font-black text-[#123D28] shadow-sm transition hover:bg-[#F7C948]">
+          <ShoppingCart className="h-4 w-4" />
+          Add to Box
         </Link>
       </div>
     </article>
@@ -633,12 +758,12 @@ function FallbackProductCard({ item }: { item: FallbackProduce }) {
 
 function ProductSkeleton() {
   return (
-    <article className="overflow-hidden rounded-[21px] border border-[#D8E5D4] bg-white shadow-[0_12px_34px_rgba(24,59,40,0.075)]">
-      <div className="h-40 animate-pulse bg-[#EAF5E7]" />
+    <article className="overflow-hidden rounded-[24px] border border-[#D8E5D4] bg-white shadow-[0_14px_42px_rgba(18,61,40,0.075)]">
+      <div className="h-44 animate-pulse bg-[#EAF5E7]" />
       <div className="p-4">
         <div className="h-3 w-16 animate-pulse rounded-full bg-[#EAF5E7]" />
         <div className="mt-3 h-5 w-28 animate-pulse rounded-full bg-[#EAF5E7]" />
-        <div className="mt-3 h-10 w-full animate-pulse rounded-xl bg-[#EAF5E7]" />
+        <div className="mt-4 h-11 w-full animate-pulse rounded-2xl bg-[#EAF5E7]" />
       </div>
     </article>
   );
@@ -646,33 +771,33 @@ function ProductSkeleton() {
 
 function WeeklyBoxSection() {
   return (
-    <section className="mx-auto max-w-[1450px] px-4 pb-7 sm:px-6 lg:px-10">
-      <div className="relative overflow-hidden rounded-[26px] bg-[#0B3A25] shadow-[0_22px_66px_rgba(24,59,40,0.18)]">
+    <section className="mx-auto max-w-[1450px] px-4 pb-8 sm:px-6 lg:px-10">
+      <div className="relative overflow-hidden rounded-[30px] bg-[#0B3A25] shadow-[0_28px_80px_rgba(18,61,40,0.22)]">
         <div className="absolute inset-0">
           <SafePublicImage
             src={WEEKLY_BOX_IMAGE}
-            fallbackSrcs={[HERO_IMAGE]}
+            fallbackSrcs={WEEKLY_BOX_FALLBACKS}
             alt="Weekly harvest boxes filled with fresh produce"
             sizes="1450px"
-            className="object-cover object-center opacity-78"
+            className="object-cover object-center opacity-80"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0B3A25] via-[#0B3A25]/76 to-[#0B3A25]/35" />
-          <div className="absolute inset-y-0 right-0 w-[42%] bg-gradient-to-l from-[#0B3A25]/95 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0B3A25] via-[#0B3A25]/78 to-[#0B3A25]/30" />
+          <div className="absolute inset-y-0 right-0 w-[42%] bg-gradient-to-l from-[#0B3A25]/90 to-transparent" />
         </div>
 
-        <div className="relative z-10 grid gap-6 px-6 py-7 sm:px-9 lg:min-h-[220px] lg:grid-cols-[1fr_0.4fr] lg:items-center lg:px-10 lg:py-8">
+        <div className="relative z-10 grid gap-6 px-6 py-8 sm:px-9 lg:min-h-[280px] lg:grid-cols-[1fr_0.42fr] lg:items-center lg:px-11">
           <div className="max-w-2xl text-white">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#DFA75A]">This week's harvest</p>
-            <h2 className="mt-3 max-w-xl font-serif text-3xl font-black leading-[1.02] tracking-[-0.035em] sm:text-4xl lg:text-[2.75rem]">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#DFA75A]">This week's harvest</p>
+            <h2 className="mt-3 max-w-xl font-serif text-3xl font-black leading-[1.02] tracking-[-0.04em] sm:text-4xl lg:text-[3rem]">
               Carefully packed weekly harvest boxes
             </h2>
             <p className="mt-4 max-w-xl text-sm font-semibold leading-7 text-white/86 sm:text-base">
-              Enjoy the best of the season with our curated boxesâ€”packed with premium, fresh produce straight from our farm to you.
+              Enjoy the best of the season with curated boxes packed with premium, fresh produce straight from the farm.
             </p>
           </div>
 
-          <div className="rounded-[22px] border border-white/16 bg-white/10 p-5 text-white shadow-[0_18px_45px_rgba(0,0,0,0.12)] backdrop-blur-md">
-            <ul className="space-y-3 text-sm font-bold text-white/88">
+          <div className="rounded-[26px] border border-white/18 bg-white/12 p-5 text-white shadow-[0_22px_55px_rgba(0,0,0,0.14)] backdrop-blur-md">
+            <ul className="space-y-3 text-sm font-bold text-white/90">
               {['Farm-fresh & seasonal', 'Curated for quality', 'Delivered with care'].map((item) => (
                 <li key={item} className="flex items-center gap-3">
                   <Check className="h-4 w-4 text-[#DFA75A]" />
@@ -680,7 +805,7 @@ function WeeklyBoxSection() {
                 </li>
               ))}
             </ul>
-            <Link href="/my-box" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-[#183B28] transition hover:-translate-y-0.5 hover:bg-[#FFF3D9]">
+            <Link href="/my-box" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-[#123D28] transition hover:-translate-y-0.5 hover:bg-[#FFF3D9]">
               <Package className="h-4 w-4" />
               Build Your Box
             </Link>
@@ -693,32 +818,31 @@ function WeeklyBoxSection() {
 
 function AppSection() {
   return (
-    <section className="mx-auto max-w-[1450px] px-4 pb-10 sm:px-6 lg:px-10">
-      <div className="relative overflow-hidden rounded-[28px] border border-[#D8E5D4] bg-[#FFFDF7] shadow-[0_22px_66px_rgba(24,59,40,0.10)]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_35%,rgba(45,103,65,0.18),transparent_30%),linear-gradient(90deg,#FFFDF7_0%,#FFFDF7_42%,rgba(234,245,231,0.86)_72%,rgba(255,243,217,0.36)_100%)]" />
-
-        <div className="absolute inset-y-0 right-0 hidden w-[58%] lg:block">
+    <section className="mx-auto max-w-[1450px] px-4 pb-12 sm:px-6 lg:px-10">
+      <div className="relative overflow-hidden rounded-[32px] border border-[#D8E5D4] bg-[#FFFDF7] shadow-[0_26px_80px_rgba(18,61,40,0.10)]">
+        <div className="absolute inset-0">
           <SafePublicImage
-            src={FARM_STORY_IMAGE}
-            fallbackSrcs={[HERO_IMAGE]}
+            src={ANDROID_BACKGROUND_IMAGE}
+            fallbackSrcs={ANDROID_BACKGROUND_FALLBACKS}
             alt=""
-            sizes="900px"
-            className="object-cover object-center opacity-33 blur-[1px]"
+            sizes="1450px"
+            className="object-cover object-center opacity-75"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#FFFDF7] via-[#FFFDF7]/60 to-[#183B28]/14" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,#FFFDF7_0%,#FFFDF7_43%,rgba(255,253,247,0.88)_57%,rgba(255,253,247,0.38)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_18%,rgba(223,167,90,0.10),transparent_28%),radial-gradient(circle_at_78%_72%,rgba(45,103,65,0.08),transparent_32%)]" />
         </div>
 
-        <div className="relative z-10 grid gap-5 px-6 py-6 sm:px-8 lg:min-h-[245px] lg:grid-cols-[0.44fr_0.29fr_0.27fr] lg:items-center lg:px-10 lg:py-0">
-          <div className="lg:py-8">
+        <div className="relative z-10 grid gap-6 px-6 py-8 sm:px-8 lg:min-h-[340px] lg:grid-cols-[0.48fr_0.52fr] lg:items-center lg:px-11">
+          <div>
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#DFA75A]">On the go</p>
-            <h2 className="mt-2 font-serif text-3xl font-black leading-tight tracking-[-0.035em] text-[#183B28] sm:text-4xl lg:text-[2.45rem]">
+            <h2 className="mt-2 font-serif text-3xl font-black leading-tight tracking-[-0.04em] text-[#123D28] sm:text-4xl lg:text-[2.65rem]">
               Take the farm with you
             </h2>
             <p className="mt-3 max-w-md text-sm font-semibold leading-6 text-[#4F5D53] sm:text-base">
               Shop fresh produce, view deals, build your box, and track your orders from the Harvest Place Ja app.
             </p>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <ExternalButton href={ANDROID_APP_URL}>
                 <Download className="h-4 w-4" />
                 Get Android App
@@ -731,32 +855,46 @@ function AppSection() {
             </div>
           </div>
 
-          <div className="relative order-3 mx-auto h-[270px] w-full max-w-[240px] overflow-visible lg:order-none lg:h-[245px] lg:max-w-[260px] lg:self-end">
-            <div className="absolute bottom-2 left-1/2 h-[82%] w-[86%] -translate-x-1/2 rounded-full bg-[#EAF5E7]/75 blur-2xl" />
-            <Image
-              src={APP_PHONE_IMAGE}
-              alt="Harvest Place Ja Android app showing deals, fresh products, My Box, Orders, and Account navigation"
-              fill
-              sizes="(min-width: 1024px) 260px, 240px"
-              className="relative z-10 object-contain object-bottom drop-shadow-[0_22px_44px_rgba(24,59,40,0.25)]"
-              unoptimized
-            />
-          </div>
+          <div className="relative min-h-[320px] overflow-hidden lg:min-h-[360px]">
+            <div className="absolute left-0 top-6 hidden h-[76%] w-px bg-[#D8E5D4] lg:block" />
 
-          <div className="order-2 flex flex-col items-start gap-3 lg:order-none lg:items-end">
-            <a href={ANDROID_APP_URL} target="_blank" rel="noopener noreferrer" aria-label="Get it on Google Play" className="inline-flex transition hover:-translate-y-0.5">
-              <span className="relative block h-[48px] w-[158px] overflow-hidden rounded-xl shadow-[0_18px_45px_rgba(0,0,0,0.22)] sm:h-[54px] sm:w-[180px]">
-                <Image src={GOOGLE_PLAY_BADGE_IMAGE} alt="Get it on Google Play" fill sizes="190px" className="object-contain" unoptimized />
-              </span>
+            <div className="absolute bottom-[-70px] left-1/2 z-20 h-[390px] w-[214px] -translate-x-1/2 sm:bottom-[-80px] sm:h-[420px] sm:w-[232px] lg:left-[14%] lg:h-[455px] lg:w-[252px] lg:translate-x-0 xl:left-[16%] xl:h-[475px] xl:w-[262px]">
+              <Image
+                src={APP_PHONE_IMAGE}
+                alt="The Harvest Place Ja Android app"
+                fill
+                sizes="270px"
+                className="object-contain object-bottom drop-shadow-[0_34px_50px_rgba(18,61,40,0.20)]"
+                unoptimized
+              />
+            </div>
+
+            <a
+              href={ANDROID_APP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute right-5 top-5 z-30 hidden transition hover:-translate-y-0.5 lg:block"
+              aria-label="Get The Harvest Place Ja app on Google Play"
+            >
+              <Image
+                src={GOOGLE_PLAY_BADGE_IMAGE}
+                alt="Get it on Google Play"
+                width={190}
+                height={58}
+                className="h-auto w-[180px] object-contain drop-shadow-[0_12px_22px_rgba(18,61,40,0.16)]"
+                unoptimized
+              />
             </a>
 
-            <div className="mt-2 grid gap-2 text-xs font-black text-[#183B28]">
-              {['Easy Ordering', 'Track Your Orders', 'Exclusive App Deals'].map((item) => (
-                <span key={item} className="inline-flex items-center gap-2 rounded-full bg-white/82 px-4 py-2 shadow-sm">
-                  <CheckCircle2 className="h-4 w-4 text-[#2D6741]" />
-                  {item}
-                </span>
-              ))}
+            <div className="absolute bottom-8 right-6 hidden rounded-[28px] border border-white/70 bg-white/70 p-5 shadow-[0_24px_70px_rgba(18,61,40,0.12)] backdrop-blur-md lg:block">
+              <div className="grid gap-3 text-xs font-black text-[#123D28]">
+                {['Easy ordering', 'Track your orders', 'Exclusive app deals'].map((item) => (
+                  <span key={item} className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-sm">
+                    <CheckCircle2 className="h-4 w-4 text-[#2D6741]" />
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -784,19 +922,30 @@ function ShopLayout({ products, loading, notice }: { products: Product[]; loadin
   const filtered = useMemo(() => filterAndSortProducts(products, query, category, sort), [products, query, category, sort]);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F0] text-[#183B28]">
-      <section className="border-b border-[#D8E5D4] bg-[radial-gradient(circle_at_top_left,#FFFFFF_0%,#FAF8F0_45%,#EAF5E7_100%)]">
-        <div className="mx-auto max-w-[1450px] px-4 py-8 sm:px-6 lg:px-10 lg:py-8">
+    <div className="min-h-screen bg-[#FAF8F0] text-[#123D28]">
+      <section className="relative overflow-hidden border-b border-[#D8E5D4] bg-[#FFFDF7]">
+        <div className="absolute inset-0">
+          <SafePublicImage
+            src={SHOP_HERO_IMAGE}
+            fallbackSrcs={SHOP_HERO_FALLBACKS}
+            alt=""
+            sizes="100vw"
+            className="object-cover object-center opacity-32"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,#FFFDF7_0%,rgba(255,253,247,0.92)_46%,rgba(234,245,231,0.72)_100%)]" />
+        </div>
+
+        <div className="relative z-10 mx-auto max-w-[1450px] px-4 py-9 sm:px-6 lg:px-10 lg:py-11">
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#DFA75A]">Shop fresh produce</p>
-          <h1 className="mt-3 font-serif text-4xl font-black leading-tight tracking-[-0.045em] text-[#183B28] sm:text-5xl lg:text-6xl">
-            This Week's Harvest
+          <h1 className="mt-3 font-serif text-4xl font-black leading-tight tracking-[-0.045em] text-[#123D28] sm:text-5xl lg:text-6xl">
+            This Week&apos;s Harvest
           </h1>
-          <p className="mt-3 max-w-2xl text-base font-semibold leading-8 text-[#5F6A62]">
-            Fresh produce available from The Harvest Place Ja.
+          <p className="mt-3 max-w-2xl text-base font-semibold leading-8 text-[#4F5D53]">
+            Fresh Jamaican produce available from The Harvest Place Ja. Search, filter, and request items with confidence.
           </p>
 
-          <div className="mt-6 grid gap-3 rounded-[24px] border border-[#D8E5D4] bg-white/80 p-3 shadow-[0_18px_50px_rgba(24,59,40,0.08)] lg:grid-cols-[1fr_220px_220px]">
-            <label className="flex min-h-[48px] items-center gap-3 rounded-2xl bg-[#F7FBF5] px-4">
+          <div className="mt-7 grid gap-3 rounded-[26px] border border-[#D8E5D4] bg-white/88 p-3 shadow-[0_22px_60px_rgba(18,61,40,0.10)] backdrop-blur lg:grid-cols-[1fr_220px_220px]">
+            <label className="flex min-h-[52px] items-center gap-3 rounded-2xl bg-[#F7FBF5] px-4 ring-1 ring-[#D8E5D4]/60">
               <Search className="h-5 w-5 text-[#2D6741]" />
               <input
                 value={query}
@@ -809,7 +958,7 @@ function ShopLayout({ products, loading, notice }: { products: Product[]; loadin
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="min-h-[48px] rounded-2xl border border-[#D8E5D4] bg-white px-4 text-sm font-black text-[#183B28] outline-none"
+              className="min-h-[52px] rounded-2xl border border-[#D8E5D4] bg-white px-4 text-sm font-black text-[#123D28] outline-none transition focus:border-[#2D6741]"
             >
               {categories.map((item) => (
                 <option key={item} value={item}>{item}</option>
@@ -819,7 +968,7 @@ function ShopLayout({ products, loading, notice }: { products: Product[]; loadin
             <select
               value={sort}
               onChange={(event) => setSort(event.target.value as ProductSort)}
-              className="min-h-[48px] rounded-2xl border border-[#D8E5D4] bg-white px-4 text-sm font-black text-[#183B28] outline-none"
+              className="min-h-[52px] rounded-2xl border border-[#D8E5D4] bg-white px-4 text-sm font-black text-[#123D28] outline-none transition focus:border-[#2D6741]"
             >
               <option value="featured">Featured</option>
               <option value="price-low">Price: Low to High</option>
@@ -834,19 +983,19 @@ function ShopLayout({ products, loading, notice }: { products: Product[]; loadin
 
       <section className="mx-auto max-w-[1450px] px-4 py-8 sm:px-6 lg:px-10">
         {loading && products.length === 0 ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
             {Array.from({ length: 10 }).map((_, index) => <ProductSkeleton key={`shop-loading-${index}`} />)}
           </div>
         ) : filtered.length ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
             {filtered.map((product) => <LiveProductCard key={product.id} product={product} />)}
           </div>
         ) : (
-          <div className="rounded-[28px] border border-[#D8E5D4] bg-white p-10 text-center shadow-[0_18px_55px_rgba(24,59,40,0.08)]">
+          <div className="rounded-[30px] border border-[#D8E5D4] bg-white p-10 text-center shadow-[0_20px_60px_rgba(18,61,40,0.08)]">
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#EAF5E7] text-[#2D6741]">
               <Leaf className="h-6 w-6" />
             </div>
-            <h2 className="mt-5 font-serif text-3xl font-black text-[#183B28]">No harvest items available right now.</h2>
+            <h2 className="mt-5 font-serif text-3xl font-black text-[#123D28]">No harvest items available right now.</h2>
             <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-7 text-[#5F6A62]">
               Try another search or check Ready Soon for produce coming next.
             </p>
@@ -860,5 +1009,3 @@ function ShopLayout({ products, loading, notice }: { products: Product[]; loadin
     </div>
   );
 }
-
-

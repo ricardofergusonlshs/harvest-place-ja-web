@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   CheckCircle2,
@@ -28,6 +29,8 @@ import {
 } from '@/lib/services';
 import { formatDateTime } from '@/lib/format';
 import type { SupportTicket } from '@/lib/types';
+
+const SUPPORT_HERO_IMAGE = '/elite/elite-support-hero.png';
 
 export default function SupportPage() {
   const { user, loading: authLoading } = useAuth();
@@ -180,7 +183,7 @@ export default function SupportPage() {
         ) : null}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-          <Card className="rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_18px_50px_rgba(24,59,40,0.07)] sm:p-8">
+          <Card className="rounded-[32px] border border-[#D8E5D4] bg-white/95 p-6 shadow-[0_22px_65px_rgba(18,61,40,0.08)] backdrop-blur sm:p-8">
             <Badge tone="green">
               <MessageSquareText className="h-3 w-3" />
               Create ticket
@@ -203,13 +206,13 @@ export default function SupportPage() {
                 placeholder="Example: Delivery question"
               />
 
-              <label className="grid gap-2 text-sm font-black text-[#183B28]">
+              <label className="grid gap-2 text-sm font-black text-[#123D28]">
                 Message
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   placeholder="Tell us what happened or what you need help with..."
-                  className="min-h-[150px] rounded-2xl border border-[#D8E5D4] bg-[#FFFEFC] p-4 text-sm font-bold leading-6 text-[#183B28] outline-none transition placeholder:text-[#5F6A62]/60 focus:border-[#2D6741] focus:ring-4 focus:ring-[#2D6741]/10"
+                  className="min-h-[160px] rounded-2xl border border-[#D8E5D4] bg-[#FFFEFC] p-4 text-sm font-bold leading-6 text-[#123D28] outline-none transition placeholder:text-[#5F6A62]/60 focus:border-[#2D6741] focus:ring-4 focus:ring-[#2D6741]/10"
                 />
               </label>
 
@@ -220,7 +223,7 @@ export default function SupportPage() {
             </div>
           </Card>
 
-          <Card className="rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_18px_50px_rgba(24,59,40,0.07)] sm:p-8">
+          <Card className="rounded-[32px] border border-[#D8E5D4] bg-white/95 p-6 shadow-[0_22px_65px_rgba(18,61,40,0.08)] backdrop-blur sm:p-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Badge tone="gold">
                 <Clock className="h-3 w-3" />
@@ -275,7 +278,11 @@ export default function SupportPage() {
 
 function SupportHero() {
   return (
-    <section className="relative overflow-hidden rounded-[34px] bg-[#183B28] px-6 py-7 text-white shadow-[0_30px_90px_rgba(24,59,40,0.20)] sm:px-8 lg:px-10">
+    <section className="relative overflow-hidden rounded-[36px] bg-[#123D28] px-6 py-8 text-white shadow-[0_34px_95px_rgba(18,61,40,0.22)] sm:px-8 lg:px-10 lg:py-10">
+      <div className="absolute inset-0 opacity-45">
+        <Image src={SUPPORT_HERO_IMAGE} alt="" fill sizes="1100px" className="object-cover object-center" unoptimized />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-r from-[#123D28] via-[#123D28]/88 to-[#123D28]/50" />
       <div className="absolute right-[-100px] top-[-120px] h-72 w-72 rounded-full bg-[#2D6741] opacity-70 blur-3xl" />
       <div className="absolute bottom-[-120px] left-[-100px] h-72 w-72 rounded-full bg-[#DFA75A] opacity-25 blur-3xl" />
 
@@ -289,7 +296,7 @@ function SupportHero() {
           Get help with your fresh market experience.
         </h1>
 
-        <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78 sm:text-base">
+        <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/82 sm:text-base">
           Send a support request about orders, delivery, payments, products, weekly boxes, account access, or farmer onboarding.
         </p>
       </div>
@@ -311,7 +318,7 @@ function Field({
   placeholder: string;
 }) {
   return (
-    <label className="grid gap-2 text-sm font-black text-[#183B28]">
+    <label className="grid gap-2 text-sm font-black text-[#123D28]">
       {label}
 
       <span className="relative block">
@@ -323,7 +330,7 @@ function Field({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="h-[52px] w-full rounded-2xl border border-[#D8E5D4] bg-[#FFFEFC] px-4 py-3 pl-12 text-sm font-bold text-[#183B28] outline-none transition placeholder:text-[#5F6A62]/60 focus:border-[#2D6741] focus:ring-4 focus:ring-[#2D6741]/10"
+          className="h-[54px] w-full rounded-2xl border border-[#D8E5D4] bg-[#FFFEFC] px-4 py-3 pl-12 text-sm font-bold text-[#123D28] outline-none transition placeholder:text-[#5F6A62]/60 focus:border-[#2D6741] focus:ring-4 focus:ring-[#2D6741]/10"
         />
       </span>
     </label>
@@ -332,10 +339,10 @@ function Field({
 
 function TicketCard({ ticket }: { ticket: SupportTicket }) {
   return (
-    <div className="rounded-3xl border border-[#D8E5D4] bg-[#FFFEFC] p-4">
+    <div className="rounded-3xl border border-[#D8E5D4] bg-[#FFFEFC] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-black text-[#183B28]">
+          <p className="font-black text-[#123D28]">
             {ticket.subject || 'Support ticket'}
           </p>
 
@@ -376,12 +383,12 @@ function SupportInfo({
   text: string;
 }) {
   return (
-    <Card className="rounded-[28px] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_50px_rgba(24,59,40,0.06)]">
+    <Card className="rounded-[30px] border border-[#D8E5D4] bg-white/95 p-5 shadow-[0_18px_50px_rgba(18,61,40,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_rgba(18,61,40,0.10)]">
       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#EAF5E7] text-[#2D6741]">
         {icon}
       </div>
 
-      <h3 className="mt-4 text-lg font-black text-[#183B28]">
+      <h3 className="mt-4 text-lg font-black text-[#123D28]">
         {title}
       </h3>
 

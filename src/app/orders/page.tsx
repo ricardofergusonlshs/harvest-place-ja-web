@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Bell,
@@ -28,6 +29,8 @@ import {
 import { useAuth } from '@/components/providers/auth-provider';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { formatDate, formatJmd, shortIdLabel } from '@/lib/format';
+
+const ORDERS_EMPTY_IMAGE = '/elite/elite-orders-empty-state.png';
 
 type OrderCustomer = {
   id: string;
@@ -221,7 +224,7 @@ export default function OrdersPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[#FAF8F0] px-4 py-12 text-[#183B28] sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-[#FAF8F0] px-4 py-12 text-[#123D28] sm:px-6 lg:px-8">
         <div className="mx-auto max-w-5xl">
           <EmptyState
             title="Sign in to track your orders live"
@@ -241,21 +244,24 @@ export default function OrdersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FAF8F0] text-[#183B28]">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] text-[#123D28]">
       <section className="mx-auto max-w-[1450px] px-4 py-8 sm:px-6 lg:px-10">
-        <section className="rounded-[2rem] bg-[#183B28] p-6 text-white shadow-[0_25px_80px_rgba(24,59,40,0.22)] sm:p-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <section className="relative overflow-hidden rounded-[2.2rem] bg-[#123D28] p-6 text-white shadow-[0_30px_90px_rgba(18,61,40,0.24)] sm:p-8">
+          <div className="absolute right-[-120px] top-[-120px] h-80 w-80 rounded-full bg-[#2D6741] opacity-65 blur-3xl" />
+          <div className="absolute bottom-[-140px] left-[-120px] h-80 w-80 rounded-full bg-[#DFA75A] opacity-20 blur-3xl" />
+
+          <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <Badge tone="gold">
                 <Bell className="h-3 w-3" />
                 Live Supabase orders
               </Badge>
 
-              <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">
+              <h1 className="mt-4 text-3xl font-black tracking-[-0.055em] sm:text-5xl">
                 My Orders Live
               </h1>
 
-              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/75 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/78 sm:text-base">
                 Search by name, receipt number, email, phone, status, payment, pickup/delivery, or date.
               </p>
 
@@ -275,15 +281,15 @@ export default function OrdersPage() {
             type="button"
             onClick={refreshNow}
             disabled={refreshing}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-[#183B28] transition hover:bg-[#EAF5E7] disabled:opacity-60"
+            className="relative z-10 mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-[#123D28] transition hover:bg-[#EAF5E7] disabled:opacity-60"
           >
             <RefreshCcw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
             Refresh now
           </button>
         </section>
 
-        <Card className="mt-6 rounded-[2rem] border border-[#D8E5D4] bg-white p-5 shadow-[0_18px_55px_rgba(24,59,40,0.06)]">
-          <div className="flex items-center gap-2 text-[#183B28]">
+        <Card className="mt-6 rounded-[2rem] border border-[#D8E5D4] bg-white/94 p-5 shadow-[0_20px_60px_rgba(18,61,40,0.07)] backdrop-blur">
+          <div className="flex items-center gap-2 text-[#123D28]">
             <SlidersHorizontal className="h-5 w-5 text-[#2D6741]" />
             <h2 className="text-xl font-black">Search and filter orders</h2>
           </div>
@@ -295,7 +301,7 @@ export default function OrdersPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search name, email, phone, receipt..."
-                className="w-full rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] py-4 pl-11 pr-4 text-sm font-bold outline-none transition focus:border-[#2D6741]"
+                className="w-full rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] py-4 pl-11 pr-4 text-sm font-bold outline-none transition focus:border-[#2D6741] focus:ring-4 focus:ring-[#2D6741]/10"
               />
             </label>
 
@@ -307,7 +313,7 @@ export default function OrdersPage() {
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value)}
-              className="w-full rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-4 text-sm font-black text-[#183B28] outline-none transition focus:border-[#2D6741]"
+              className="w-full rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-4 text-sm font-black text-[#123D28] outline-none transition focus:border-[#2D6741] focus:ring-4 focus:ring-[#2D6741]/10"
             >
               {SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -325,7 +331,7 @@ export default function OrdersPage() {
                   type="date"
                   value={startDate}
                   onChange={(event) => setStartDate(event.target.value)}
-                  className="rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-3 text-sm font-black text-[#183B28] outline-none focus:border-[#2D6741]"
+                  className="rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-3 text-sm font-black text-[#123D28] outline-none focus:border-[#2D6741]"
                 />
               </label>
 
@@ -335,7 +341,7 @@ export default function OrdersPage() {
                   type="date"
                   value={endDate}
                   onChange={(event) => setEndDate(event.target.value)}
-                  className="rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-3 text-sm font-black text-[#183B28] outline-none focus:border-[#2D6741]"
+                  className="rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-3 text-sm font-black text-[#123D28] outline-none focus:border-[#2D6741]"
                 />
               </label>
             </div>
@@ -343,14 +349,14 @@ export default function OrdersPage() {
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs font-bold text-[#5F6A62]">
-              Showing <span className="text-[#183B28]">{filteredOrders.length}</span> of{' '}
-              <span className="text-[#183B28]">{orders.length}</span> orders.
+              Showing <span className="text-[#123D28]">{filteredOrders.length}</span> of{' '}
+              <span className="text-[#123D28]">{orders.length}</span> orders.
             </p>
 
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-full border border-[#D8E5D4] bg-white px-4 py-2 text-xs font-black text-[#183B28] transition hover:bg-[#F4F9F2]"
+              className="rounded-full border border-[#D8E5D4] bg-white px-4 py-2 text-xs font-black text-[#123D28] transition hover:bg-[#F4F9F2]"
             >
               Clear filters
             </button>
@@ -371,8 +377,8 @@ export default function OrdersPage() {
           )}
         </section>
 
-        <Card className="mt-6 rounded-[2rem] border border-[#D8E5D4] bg-white p-6 shadow-[0_18px_55px_rgba(24,59,40,0.06)]">
-          <h2 className="text-xl font-black text-[#183B28]">Live order notes</h2>
+        <Card className="mt-6 rounded-[2rem] border border-[#D8E5D4] bg-white/94 p-6 shadow-[0_20px_60px_rgba(18,61,40,0.07)]">
+          <h2 className="text-xl font-black text-[#123D28]">Live order notes</h2>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <InfoLine icon={<PackageCheck className="h-5 w-5" />} text="Reads from Supabase orders and customers" />
@@ -448,14 +454,14 @@ function LiveOrderCard({ order }: { order: LiveOrder }) {
   return (
     <Card
       className={cn(
-        'rounded-[2rem] border bg-white p-6 shadow-[0_18px_55px_rgba(24,59,40,0.06)]',
+        'rounded-[2rem] border bg-white p-6 shadow-[0_20px_60px_rgba(18,61,40,0.07)] transition hover:-translate-y-0.5',
         ready ? 'border-[#2D6741]/50 ring-4 ring-[#2D6741]/10' : 'border-[#D8E5D4]',
       )}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-black text-[#183B28]">
+            <h2 className="text-xl font-black text-[#123D28]">
               Receipt #HPJ-{shortIdLabel(String(order.id))}
             </h2>
 
@@ -474,7 +480,7 @@ function LiveOrderCard({ order }: { order: LiveOrder }) {
           </p>
 
           <div className="mt-4 rounded-3xl border border-[#D8E5D4] bg-[#F4F9F2] p-4">
-            <p className="flex items-center gap-2 text-lg font-black text-[#183B28]">
+            <p className="flex items-center gap-2 text-lg font-black text-[#123D28]">
               <User className="h-5 w-5 text-[#2D6741]" />
               {customerName}
             </p>
@@ -510,7 +516,7 @@ function LiveOrderCard({ order }: { order: LiveOrder }) {
           <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6A62]">
             Total
           </p>
-          <p className="mt-1 text-xl font-black text-[#183B28]">
+          <p className="mt-1 text-xl font-black text-[#123D28]">
             {typeof total === 'number' ? formatJmd(total) : 'Pending'}
           </p>
         </div>
@@ -562,7 +568,7 @@ function SelectBox({
       aria-label={label}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-4 text-sm font-black text-[#183B28] outline-none transition focus:border-[#2D6741]"
+      className="w-full rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-4 text-sm font-black text-[#123D28] outline-none transition focus:border-[#2D6741] focus:ring-4 focus:ring-[#2D6741]/10"
     >
       {options.map((option) => (
         <option key={option} value={option}>
@@ -575,7 +581,7 @@ function SelectBox({
 
 function HeroStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-3xl border border-white/15 bg-white/10 px-5 py-4 text-center">
+    <div className="rounded-3xl border border-white/15 bg-white/10 px-5 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur">
       <p className="text-xs font-black uppercase tracking-[0.16em] text-[#DFA75A]">
         {label}
       </p>
@@ -586,9 +592,18 @@ function HeroStat({ label, value }: { label: string; value: number }) {
 
 function EmptyOrders({ hasOrders = false }: { hasOrders?: boolean }) {
   return (
-    <Card className="rounded-[2rem] border border-dashed border-[#D8E5D4] bg-white p-10 text-center shadow-[0_18px_55px_rgba(24,59,40,0.06)]">
-      <ShoppingBag className="mx-auto h-12 w-12 text-[#2D6741]" />
-      <h2 className="mt-5 text-2xl font-black text-[#183B28]">
+    <Card className="rounded-[2rem] border border-dashed border-[#D8E5D4] bg-white p-10 text-center shadow-[0_20px_60px_rgba(18,61,40,0.07)]">
+      <div className="relative mx-auto h-28 w-28 overflow-hidden rounded-[2rem] bg-[#F4F9F2]">
+        <Image
+          src={ORDERS_EMPTY_IMAGE}
+          alt=""
+          fill
+          sizes="112px"
+          className="object-contain p-4"
+          unoptimized
+        />
+      </div>
+      <h2 className="mt-5 text-2xl font-black text-[#123D28]">
         {hasOrders ? 'No matching orders found' : 'No orders yet'}
       </h2>
       <p className="mx-auto mt-2 max-w-xl text-sm font-semibold leading-6 text-[#5F6A62]">
@@ -621,7 +636,7 @@ function InfoBox({ label, value }: { label: string; value: string }) {
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#2D6741]">
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-black text-[#183B28]">{value}</p>
+      <p className="mt-1 truncate text-sm font-black text-[#123D28]">{value}</p>
     </div>
   );
 }

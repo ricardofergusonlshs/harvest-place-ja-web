@@ -9,154 +9,258 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { CartLine, Product } from '@/lib/types';
-import { canAddToCart, effectivePrice } from '@/lib/product';
 
-const CART_KEY = 'harvest-place-ja-cart-v1';
+import { useAuth } from '@/components/providers/auth-provider';
+import type { Product } from '@/lib/types';
+import {
+  addCloudCartItem,
+  calculateCartSubtotal,
+  clearCloudCartItems,
+  clearGuestCartLines,
+  fetchCloudCartLines,
+  getGuestCartLines,
+  mergeGuestCartIntoCloud,
+  removeCloudCartItem,
+  saveGuestCartLines,
+  updateCloudCartQuantity,
+  type CartLine,
+} from '../../lib/cloud-cart';
 
 type CartContextValue = {
   lines: CartLine[];
   count: number;
   subtotal: number;
-  addToCart: (product: Product, quantity?: number) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  removeFromCart: (productId: string) => void;
-  clearCart: () => void;
+  loading: boolean;
+  syncing: boolean;
+  error: string;
+  isCloudCart: boolean;
+  addToCart: (product: Product, quantity?: number) => Promise<void>;
+  updateQuantity: (productId: string, quantity: number) => Promise<void>;
+  removeFromCart: (productId: string) => Promise<void>;
+  clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-function getProductId(product: Product) {
-  return String(product.id);
-}
+function mergeLocalLine(lines: CartLine[], product: Product, quantity: number) {
+  const productId = String(product.id || '');
+  const safeQuantity = Math.max(1, Math.floor(Number(quantity || 1)));
 
-function clampQuantity(product: Product, quantity: number) {
-  const stockQuantity = Number(product.stock_quantity || 0);
-  const safeQuantity = Math.max(1, Number(quantity || 1));
+  if (!productId) return lines;
 
-  if (stockQuantity <= 0) return 1;
+  const exists = lines.some((line) => String(line.product.id) === productId);
 
-  return Math.min(stockQuantity, safeQuantity);
-}
-
-function readStoredCart(): CartLine[] {
-  try {
-    const stored = window.localStorage.getItem(CART_KEY);
-
-    if (!stored) return [];
-
-    const parsed = JSON.parse(stored) as CartLine[];
-
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.filter((line) => {
-      return line?.product?.id && Number(line.quantity || 0) > 0;
-    });
-  } catch {
-    return [];
+  if (exists) {
+    return lines.map((line) =>
+      String(line.product.id) === productId
+        ? { ...line, quantity: Number(line.quantity || 0) + safeQuantity }
+        : line,
+    );
   }
+
+  return [...lines, { product, quantity: safeQuantity }];
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
+
   const [lines, setLines] = useState<CartLine[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    setLines(readStoredCart());
-    setHydrated(true);
-  }, []);
+  const isCloudCart = Boolean(user);
 
-  useEffect(() => {
-    if (!hydrated) return;
+  const loadCloudCart = useCallback(async () => {
+    setSyncing(true);
+    setError('');
 
     try {
-      window.localStorage.setItem(CART_KEY, JSON.stringify(lines));
-    } catch {
-      // Local storage may be blocked in some browser modes.
+      await mergeGuestCartIntoCloud('website');
+      const cloudLines = await fetchCloudCartLines();
+      setLines(cloudLines);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cloud cart failed to load.');
+      setLines(getGuestCartLines());
+    } finally {
+      setSyncing(false);
+      setLoading(false);
     }
-  }, [lines, hydrated]);
+  }, []);
 
-  const addToCart = useCallback((product: Product, quantity = 1) => {
-    if (!canAddToCart(product)) return;
+  const loadGuestCart = useCallback(() => {
+    setError('');
+    setLines(getGuestCartLines());
+    setLoading(false);
+  }, []);
 
-    setLines((current) => {
-      const productId = getProductId(product);
-      const found = current.find((line) => getProductId(line.product) === productId);
+  useEffect(() => {
+    if (authLoading) return;
 
-      if (found) {
-        return current.map((line) => {
-          if (getProductId(line.product) !== productId) return line;
+    setLoading(true);
 
-          return {
-            ...line,
-            product,
-            quantity: clampQuantity(product, line.quantity + quantity),
-          };
+    if (user) {
+      void loadCloudCart();
+      return;
+    }
+
+    loadGuestCart();
+  }, [authLoading, user, loadCloudCart, loadGuestCart]);
+
+  const count = useMemo(
+    () => lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0),
+    [lines],
+  );
+
+  const subtotal = useMemo(() => calculateCartSubtotal(lines), [lines]);
+
+  const refreshCart = useCallback(async () => {
+    if (user) {
+      await loadCloudCart();
+      return;
+    }
+
+    loadGuestCart();
+  }, [user, loadCloudCart, loadGuestCart]);
+
+  const addToCart = useCallback(
+    async (product: Product, quantity = 1) => {
+      const safeQuantity = Math.max(1, Math.floor(Number(quantity || 1)));
+      setError('');
+
+      if (!user) {
+        setLines((current) => {
+          const next = mergeLocalLine(current, product, safeQuantity);
+          saveGuestCartLines(next);
+          return next;
         });
+        return;
       }
 
-      return [
-        ...current,
-        {
-          product,
-          quantity: clampQuantity(product, quantity),
-        },
-      ];
-    });
-  }, []);
+      setLines((current) => mergeLocalLine(current, product, safeQuantity));
+      setSyncing(true);
 
-  const updateQuantity = useCallback((productId: string, quantity: number) => {
-    const safeProductId = String(productId);
+      try {
+        await addCloudCartItem(product, safeQuantity, 'website');
+        const cloudLines = await fetchCloudCartLines();
+        setLines(cloudLines);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not add item to your cloud cart.');
+        await refreshCart();
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [user, refreshCart],
+  );
 
-    setLines((current) =>
-      current.flatMap((line) => {
-        if (getProductId(line.product) !== safeProductId) return [line];
+  const updateQuantity = useCallback(
+    async (productId: string, quantity: number) => {
+      const cleanProductId = String(productId || '');
+      const safeQuantity = Math.floor(Number(quantity || 0));
 
-        if (quantity <= 0) return [];
+      if (!cleanProductId) return;
 
-        return [
-          {
-            ...line,
-            quantity: clampQuantity(line.product, quantity),
-          },
-        ];
-      })
-    );
-  }, []);
+      setError('');
 
-  const removeFromCart = useCallback((productId: string) => {
-    const safeProductId = String(productId);
+      if (!user) {
+        setLines((current) => {
+          const next =
+            safeQuantity <= 0
+              ? current.filter((line) => String(line.product.id) !== cleanProductId)
+              : current.map((line) =>
+                  String(line.product.id) === cleanProductId
+                    ? { ...line, quantity: safeQuantity }
+                    : line,
+                );
 
-    setLines((current) =>
-      current.filter((line) => getProductId(line.product) !== safeProductId)
-    );
-  }, []);
+          saveGuestCartLines(next);
+          return next;
+        });
+        return;
+      }
 
-  const clearCart = useCallback(() => {
+      setLines((current) =>
+        safeQuantity <= 0
+          ? current.filter((line) => String(line.product.id) !== cleanProductId)
+          : current.map((line) =>
+              String(line.product.id) === cleanProductId
+                ? { ...line, quantity: safeQuantity }
+                : line,
+            ),
+      );
+
+      setSyncing(true);
+
+      try {
+        await updateCloudCartQuantity(cleanProductId, safeQuantity);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not update your cloud cart.');
+        await refreshCart();
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [user, refreshCart],
+  );
+
+  const removeFromCart = useCallback(
+    async (productId: string) => {
+      await updateQuantity(productId, 0);
+    },
+    [updateQuantity],
+  );
+
+  const clearCart = useCallback(async () => {
+    setError('');
     setLines([]);
-  }, []);
 
-  const count = useMemo(() => {
-    return lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0);
-  }, [lines]);
+    if (!user) {
+      clearGuestCartLines();
+      return;
+    }
 
-  const subtotal = useMemo(() => {
-    return lines.reduce((sum, line) => {
-      return sum + Number(effectivePrice(line.product) || 0) * Number(line.quantity || 0);
-    }, 0);
-  }, [lines]);
+    setSyncing(true);
+
+    try {
+      await clearCloudCartItems();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not clear your cloud cart.');
+    } finally {
+      setSyncing(false);
+    }
+  }, [user]);
 
   const value = useMemo<CartContextValue>(
     () => ({
       lines,
       count,
       subtotal,
+      loading,
+      syncing,
+      error,
+      isCloudCart,
       addToCart,
       updateQuantity,
       removeFromCart,
       clearCart,
+      refreshCart,
     }),
-    [lines, count, subtotal, addToCart, updateQuantity, removeFromCart, clearCart]
+    [
+      lines,
+      count,
+      subtotal,
+      loading,
+      syncing,
+      error,
+      isCloudCart,
+      addToCart,
+      updateQuantity,
+      removeFromCart,
+      clearCart,
+      refreshCart,
+    ],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
@@ -166,7 +270,7 @@ export function useCart() {
   const context = useContext(CartContext);
 
   if (!context) {
-    throw new Error('useCart must be used inside CartProvider');
+    throw new Error('useCart must be used inside CartProvider.');
   }
 
   return context;

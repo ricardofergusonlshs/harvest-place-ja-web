@@ -73,6 +73,13 @@ const quickFacts = [
   },
 ] as const;
 
+const deliveryDetails = [
+  'Delivery area: selected St. Elizabeth communities',
+  'Main areas: Santa Cruz, Junction, Black River, Malvern, Treasure Beach, and nearby areas',
+  'Delivery fee: JMD $1,000',
+  'Default schedule: Friday at 4:00 PM',
+] as const;
+
 export default function RefundPolicyPage() {
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#FAF8F0_0%,#F4F9F2_52%,#FFFEFC_100%)] text-[#1E2A21]">
@@ -161,17 +168,17 @@ export default function RefundPolicyPage() {
             </ul>
           </Card>
 
-          <Card className="rounded-[30px] border border-[#D8E5D4] bg-[#183B28] p-6 text-white shadow-[0_24px_70px_rgba(24,59,40,0.16)] sm:p-8">
+          <Card className="rounded-[30px] border border-[#0F4A2F] bg-[#073F2A] p-6 text-white shadow-[0_24px_70px_rgba(7,63,42,0.20)] sm:p-8">
             <Badge tone="gold">
               <ShieldCheck className="h-3 w-3" />
               Need help?
             </Badge>
 
-            <h2 className="mt-4 text-3xl font-black tracking-[-0.04em]">
+            <h2 className="mt-4 text-3xl font-black tracking-[-0.04em] text-white">
               Open a support request
             </h2>
 
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/76">
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/82">
               Include your order number, the affected item, what happened, and any photos that show the issue. The more complete the request, the faster the team can review it.
             </p>
 
@@ -192,6 +199,28 @@ export default function RefundPolicyPage() {
             </div>
           </Card>
         </section>
+
+        <Card className="mt-8 rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_18px_50px_rgba(24,59,40,0.07)] sm:p-8">
+          <Badge tone="green">
+            <Truck className="h-3 w-3" />
+            Delivery information
+          </Badge>
+
+          <h2 className="mt-4 text-2xl font-black tracking-[-0.035em] text-[#183B28]">
+            St. Elizabeth delivery policy
+          </h2>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {deliveryDetails.map((item) => (
+              <div
+                key={item}
+                className="rounded-2xl border border-[#D8E5D4] bg-[#F4F9F2] px-4 py-3 text-sm font-black text-[#183B28]"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </Card>
 
         <Card className="mt-8 rounded-[30px] border border-[#D8E5D4] bg-white p-6 shadow-[0_18px_50px_rgba(24,59,40,0.07)] sm:p-8">
           <div className="rounded-[24px] border border-[#DFA75A]/35 bg-[#FFF3D9] p-5">
@@ -219,27 +248,37 @@ export default function RefundPolicyPage() {
 
 function PolicyHero() {
   return (
-    <section className="relative overflow-hidden rounded-[34px] bg-[#183B28] px-6 py-7 text-white shadow-[0_30px_90px_rgba(24,59,40,0.20)] sm:px-8 lg:px-10">
-      <div className="absolute right-[-100px] top-[-120px] h-72 w-72 rounded-full bg-[#2D6741] opacity-70 blur-3xl" />
-      <div className="absolute bottom-[-120px] left-[-100px] h-72 w-72 rounded-full bg-[#DFA75A] opacity-25 blur-3xl" />
+    <section className="relative overflow-hidden rounded-[34px] bg-[#073F2A] px-6 py-8 text-white shadow-[0_30px_90px_rgba(7,63,42,0.24)] sm:px-8 lg:px-10">
+      <div className="absolute right-[-100px] top-[-120px] h-72 w-72 rounded-full bg-[#2D6741]/70 blur-3xl" />
+      <div className="absolute bottom-[-120px] left-[-100px] h-72 w-72 rounded-full bg-[#DFA75A]/25 blur-3xl" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,63,42,0.98)_0%,rgba(7,63,42,0.88)_52%,rgba(7,63,42,0.62)_100%)]" />
 
-      <div className="relative z-10 grid gap-7 lg:grid-cols-[1fr_auto] lg:items-end">
-        <SectionHeader
-          eyebrow="Policy"
-          title="Refund Policy"
-          subtitle="Clear, fair, and produce-aware refund guidance for marketplace orders, cancellations, and support reviews."
-        />
+      <div className="relative z-10 grid gap-7 lg:grid-cols-[1fr_360px] lg:items-end">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#FFF3D9] px-4 py-2 text-[11px] font-black uppercase tracking-[0.22em] text-[#7A4F13] shadow-sm">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Policy
+          </span>
 
-        <div className="rounded-3xl border border-white/12 bg-white/10 p-5 text-white backdrop-blur lg:max-w-sm">
+          <h1 className="mt-5 max-w-3xl font-serif text-4xl font-black leading-[0.96] tracking-[-0.05em] text-white sm:text-5xl lg:text-6xl">
+            Refund Policy
+          </h1>
+
+          <p className="mt-5 max-w-2xl text-sm font-semibold leading-7 text-white/84 sm:text-base">
+            Clear, fair, and produce-aware refund guidance for marketplace orders, cancellations, and support reviews.
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-white/14 bg-white/10 p-5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-[#DFA75A]">
             Policy status
           </p>
 
-          <p className="mt-3 text-2xl font-black tracking-[-0.035em]">
+          <p className="mt-3 text-2xl font-black tracking-[-0.035em] text-white">
             Customer-first review
           </p>
 
-          <p className="mt-3 text-sm font-semibold leading-6 text-white/74">
+          <p className="mt-3 text-sm font-semibold leading-6 text-white/78">
             Every request is reviewed with care, using order records and customer-provided details to reach the fairest available outcome.
           </p>
         </div>

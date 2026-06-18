@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  BarChart3,
   Bell,
+  ClipboardList,
   Gift,
   Headphones,
   LogOut,
@@ -15,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import { Badge, Button, Card, EmptyState, LoadingState, StatusChip } from '@/components/ui';
+import ReferEarnCard from '../../components/referrals/refer-earn-card';
 import { useAuth } from '@/components/providers/auth-provider';
 import {
   fetchCurrentCustomerProfile,
@@ -23,6 +26,7 @@ import {
   fetchOrders,
   saveCurrentCustomerProfile,
 } from '@/lib/services';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { formatDate, formatJmd, safeEmailName, shortIdLabel } from '@/lib/format';
 import type {
   CustomerProfile,
@@ -32,6 +36,9 @@ import type {
 } from '@/lib/types';
 
 const SIGN_IN_HREF = '/auth?redirect=/account';
+const CHECKOUT_NAME_KEY = 'hpj_checkout_customer_name';
+const CHECKOUT_PHONE_KEY = 'hpj_checkout_customer_phone';
+const CHECKOUT_ADDRESS_KEY = 'hpj_checkout_customer_address';
 
 type AccountState = {
   profile: CustomerProfile | null;
@@ -46,6 +53,18 @@ const emptyState: AccountState = {
   subs: [],
   orders: [],
 };
+
+function saveCheckoutIdentity(name: string, phone: string, address: string) {
+  if (typeof window === 'undefined') return;
+
+  const cleanName = name.trim();
+  const cleanPhone = phone.trim();
+  const cleanAddress = address.trim();
+
+  if (cleanName) window.localStorage.setItem(CHECKOUT_NAME_KEY, cleanName);
+  if (cleanPhone) window.localStorage.setItem(CHECKOUT_PHONE_KEY, cleanPhone);
+  if (cleanAddress) window.localStorage.setItem(CHECKOUT_ADDRESS_KEY, cleanAddress);
+}
 
 export default function AccountPage() {
   const { user, loading: authLoading, isAdmin, farmerProfile, signOut } = useAuth();
@@ -85,14 +104,30 @@ export default function AccountPage() {
 
       if (!alive) return;
 
+      const fallbackName =
+        profile?.full_name ||
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        safeEmailName(user.email) ||
+        '';
+
+      const fallbackPhone =
+        profile?.phone ||
+        user.user_metadata?.phone ||
+        user.user_metadata?.phone_number ||
+        '';
+
+      const fallbackAddress = profile?.address || user.user_metadata?.address || '';
+
       setAccount({ profile, loyalty, subs, orders });
-      setName(profile?.full_name || safeEmailName(user.email) || '');
-      setPhone(profile?.phone || '');
-      setAddress(profile?.address || '');
+      setName(fallbackName);
+      setPhone(fallbackPhone);
+      setAddress(fallbackAddress);
+      saveCheckoutIdentity(fallbackName, fallbackPhone, fallbackAddress);
       setLoading(false);
     }
 
-    loadAccount();
+    void loadAccount();
 
     return () => {
       alive = false;
@@ -110,19 +145,56 @@ export default function AccountPage() {
   const recentOrders = account.orders.slice(0, 3);
 
   async function saveProfile() {
-    if (saving) return;
+    if (saving || !user) return;
+
+    const cleanName = name.trim() || displayName;
+    const cleanPhone = phone.trim();
+    const cleanAddress = address.trim();
 
     setSaving(true);
     setMessage('Saving your profile...');
 
     try {
       await saveCurrentCustomerProfile({
-        full_name: name || displayName,
-        phone,
-        address,
+        full_name: cleanName,
+        phone: cleanPhone,
+        address: cleanAddress,
       });
 
-      setMessage('Profile saved successfully.');
+      saveCheckoutIdentity(cleanName, cleanPhone, cleanAddress);
+
+      setAccount((current) => ({
+        ...current,
+        profile: {
+          ...(current.profile || {}),
+          full_name: cleanName,
+          phone: cleanPhone,
+          address: cleanAddress,
+          email: user.email || current.profile?.email || '',
+          user_id: user.id,
+        } as CustomerProfile,
+      }));
+
+      try {
+        const supabase = getSupabaseBrowserClient();
+
+        await supabase.auth.updateUser({
+          data: {
+            full_name: cleanName,
+            name: cleanName,
+            phone: cleanPhone,
+            phone_number: cleanPhone,
+            address: cleanAddress,
+          },
+        });
+      } catch {
+        // Auth metadata update is helpful but not required. Customer table + local checkout keys are enough.
+      }
+
+      setName(cleanName);
+      setPhone(cleanPhone);
+      setAddress(cleanAddress);
+      setMessage('Profile saved successfully. Checkout will now use this name and phone automatically.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Profile could not be saved right now.');
     } finally {
@@ -188,6 +260,13 @@ export default function AccountPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              {isAdmin ? (
+                <Button href="/admin" className="bg-[#DFA75A] text-[#183B28] hover:bg-[#F4C978]">
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Admin Dashboard
+                </Button>
+              ) : null}
+
               <Button href="/shop">Shop Produce</Button>
               <Button href="/my-box" variant="secondary">
                 My Box
@@ -200,12 +279,15 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {isAdmin ? <AdminCommandCenter /> : null}
+
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <ActionCard href="/shop" title="Shop Produce" text="Browse fresh local items." icon={<Sprout className="h-5 w-5" />} />
           <ActionCard href="/my-box" title="My Box" text="Review selected items." icon={<ShoppingBag className="h-5 w-5" />} />
           <ActionCard href="/orders" title="Orders" text="Track your orders." icon={<PackageCheck className="h-5 w-5" />} />
           <ActionCard href="/ready-soon" title="Fresh Alerts" text="Manage ready-soon alerts." icon={<Bell className="h-5 w-5" />} />
           <ActionCard href="/support" title="Support" text="Get help quickly." icon={<Headphones className="h-5 w-5" />} />
+          <ActionCard href="/refer-earn" title="Refer & Earn" text="Share and earn points." icon={<Gift className="h-5 w-5" />} />
         </section>
 
         <section className="grid gap-6 lg:grid-cols-3">
@@ -233,6 +315,8 @@ export default function AccountPage() {
             icon={<Gift className="h-6 w-6" />}
           />
         </section>
+
+        <ReferEarnCard />
 
         <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <Card className="border-[#D8E5D4] bg-white p-6 shadow-[0_18px_55px_rgba(24,59,40,0.06)]">
@@ -310,7 +394,7 @@ export default function AccountPage() {
                 Update your details
               </h2>
               <p className="mt-1 text-sm font-semibold text-[#5F6A62]">
-                Keep it simple: name, private phone, and delivery area.
+                These details will be used automatically at checkout.
               </p>
             </div>
 
@@ -340,9 +424,14 @@ export default function AccountPage() {
               </p>
             ) : null}
 
-            <Button onClick={saveProfile} className="mt-5">
-              {saving ? 'Saving...' : 'Save Profile'}
-            </Button>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button onClick={saveProfile} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Profile'}
+              </Button>
+              <Button href="/checkout" variant="secondary">
+                Go to checkout
+              </Button>
+            </div>
           </Card>
 
           <Card className="border-[#D8E5D4] bg-white p-6 shadow-[0_18px_55px_rgba(24,59,40,0.06)]">
@@ -372,12 +461,74 @@ export default function AccountPage() {
                 Open Support
               </Button>
 
-              {isAdmin ? <Button href="/admin">Admin Dashboard</Button> : null}
+              {isAdmin ? (
+                <Button href="/admin" className="bg-[#DFA75A] text-[#183B28] hover:bg-[#F4C978]">
+                  Admin Dashboard
+                </Button>
+              ) : null}
             </div>
           </Card>
         </section>
       </div>
     </main>
+  );
+}
+
+function AdminCommandCenter() {
+  return (
+    <section className="relative overflow-hidden rounded-[2rem] border border-[#DFA75A]/45 bg-[#073F2A] p-6 text-white shadow-[0_28px_90px_rgba(7,63,42,0.20)] sm:p-8">
+      <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#2D6741]/70 blur-3xl" />
+      <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-[#DFA75A]/20 blur-3xl" />
+
+      <div className="relative z-10 grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#FFF3D9] px-4 py-2 text-[11px] font-black uppercase tracking-[0.22em] text-[#7A4F13]">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Admin command center
+          </span>
+
+          <h2 className="mt-4 font-serif text-3xl font-black leading-[0.98] tracking-[-0.05em] text-white sm:text-4xl">
+            Manage The Harvest Place Ja faster.
+          </h2>
+
+          <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78">
+            Your admin dashboard is now highlighted here for quick access to orders, products, customer support, and marketplace activity.
+          </p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button href="/admin" className="bg-[#DFA75A] text-[#183B28] hover:bg-[#F4C978]">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Open Admin Dashboard
+            </Button>
+
+            <Button href="/orders" variant="secondary" className="border-white/20 bg-white/10 text-white hover:bg-white/18">
+              <ClipboardList className="mr-2 h-4 w-4" />
+              Review Orders
+            </Button>
+
+            <Button href="/support" variant="ghost" className="border-white/20 bg-white/10 text-white hover:bg-white/18">
+              <Headphones className="mr-2 h-4 w-4" />
+              Support Inbox
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 rounded-[1.75rem] border border-white/12 bg-white/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur">
+          <AdminQuickItem title="Orders" text="Check new orders and fulfilment status." />
+          <AdminQuickItem title="Products" text="Update prices, stock, and product visibility." />
+          <AdminQuickItem title="Support" text="Respond to customer requests and live chat." />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AdminQuickItem({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/8 px-4 py-3">
+      <p className="text-sm font-black text-[#FFF3D9]">{title}</p>
+      <p className="mt-1 text-xs font-semibold leading-5 text-white/70">{text}</p>
+    </div>
   );
 }
 

@@ -4,32 +4,37 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useMemo, useState } from 'react';
 import {
-  Home,
-  ShoppingBag,
-  Package,
-  ClipboardList,
-  Headphones,
-  User,
+  House,
+  Store,
+  CalendarDays,
+  ShoppingCart,
+  ReceiptText,
+  LifeBuoy,
+  CircleUserRound,
   LogOut,
   Send,
 } from 'lucide-react';
 
 import LiveChatWidget from '@/components/chat/live-chat-widget';
+import ReferralCapture from '@/components/referrals/referral-capture';
 import { useAuth } from '@/components/providers/auth-provider';
+import { useCart } from '@/components/providers/cart-provider';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 const navItems = [
-  { label: 'Home', href: '/', icon: Home },
-  { label: 'Shop', href: '/shop', icon: ShoppingBag },
-  { label: 'My Box', href: '/my-box', icon: Package },
-  { label: 'Orders', href: '/orders', icon: ClipboardList },
-  { label: 'Support', href: '/support', icon: Headphones },
+  { label: 'Home', href: '/', icon: House },
+  { label: 'Shop', href: '/shop', icon: Store },
+  { label: 'Plans', href: '/weekly-box', icon: CalendarDays },
+  { label: 'My Box', href: '/my-box', icon: ShoppingCart },
+  { label: 'Orders', href: '/orders', icon: ReceiptText },
+  { label: 'Support', href: '/support', icon: LifeBuoy },
 ];
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { count } = useCart();
   const [signingOut, setSigningOut] = useState(false);
 
   const userName = useMemo(() => getUserDisplayName(user), [user]);
@@ -117,20 +122,11 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 isActive('/account') ? 'bg-[#EAF5E7] text-[#183B28]' : 'text-[#183B28]',
               ].join(' ')}
             >
-              <User className="h-4 w-4" />
+              <CircleUserRound className="h-4 w-4" />
               {user ? userName : 'Account'}
             </Link>
 
-            <Link
-              href="/my-box"
-              aria-label="My Box"
-              className={[
-                'inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#D8E5D4] bg-white text-[#183B28] shadow-sm transition hover:bg-[#F4F9F2]',
-                isActive('/my-box') ? 'bg-[#EAF5E7]' : '',
-              ].join(' ')}
-            >
-              <Package className="h-5 w-5" />
-            </Link>
+            <CartAction count={count} active={isActive('/my-box')} />
 
             {!loading && user ? (
               <button
@@ -160,19 +156,56 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
       <main className="pb-20 lg:pb-0">{children}</main>
 
-      <MobileBottomNav pathname={pathname} />
+      <MobileBottomNav pathname={pathname} cartCount={count} />
 
-      <Footer user={user} userName={userName} />
+      <Footer />
 
+      <ReferralCapture />
       <LiveChatWidget />
     </div>
   );
 }
 
-function MobileBottomNav({ pathname }: { pathname: string }) {
+
+function CartAction({ count, active }: { count: number; active: boolean }) {
+  return (
+    <Link
+      href="/my-box"
+      aria-label={`Cart${count > 0 ? `, ${count} item${count === 1 ? '' : 's'}` : ', empty'}`}
+      className={[
+        'relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#D8E5D4] bg-white text-[#183B28] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#F4F9F2]',
+        active ? 'bg-[#EAF5E7]' : '',
+      ].join(' ')}
+    >
+      <ShoppingCart className="h-5 w-5 text-[#2D6741]" />
+      {count > 0 ? <CartBadge count={count} /> : null}
+    </Link>
+  );
+}
+
+function CartBadge({
+  count,
+  className = '',
+}: {
+  count: number;
+  className?: string;
+}) {
+  return (
+    <span
+      className={[
+        'absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#DFA75A] px-1 text-[10px] font-black leading-none text-[#183B28] shadow-sm ring-2 ring-white',
+        className,
+      ].join(' ')}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
+function MobileBottomNav({ pathname, cartCount }: { pathname: string; cartCount: number }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#D8E5D4] bg-[#FFFEFC]/95 px-2 py-2 shadow-[0_-10px_35px_rgba(24,59,40,0.08)] backdrop-blur-xl lg:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+      <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
@@ -182,11 +215,16 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
               key={item.href}
               href={item.href}
               className={[
-                'flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-black transition',
+                'flex flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[9px] font-black transition sm:text-[10px]',
                 active ? 'bg-[#EAF5E7] text-[#183B28]' : 'text-[#5F6A62]',
               ].join(' ')}
             >
-              <Icon className="h-4 w-4" />
+              <span className="relative">
+                <Icon className="h-4 w-4" />
+                {item.href === '/my-box' && cartCount > 0 ? (
+                  <CartBadge count={cartCount} className="-right-2 -top-2 h-4 min-w-4 text-[9px]" />
+                ) : null}
+              </span>
               {item.label}
             </Link>
           );
@@ -196,91 +234,104 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
   );
 }
 
-function Footer({
-  user,
-  userName,
-}: {
-  user: unknown;
-  userName: string;
-}) {
+
+
+function Footer() {
   return (
-    <footer className="border-t border-[#0F4A2F]/20 bg-[#073F2A] text-white">
-      <div className="mx-auto grid max-w-[1500px] gap-8 px-4 py-10 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
-        <div>
-          <div className="flex items-center gap-3">
-            <img
-              src="/logo.png"
-              alt="The Harvest Place Ja"
-              className="h-14 w-14 rounded-2xl bg-white object-contain"
-            />
-            <div>
-              <p className="font-serif text-2xl font-black">The Harvest Place Ja</p>
-              <p className="text-sm font-black text-white/85">Fresh from our farm to your table.</p>
+    <footer className="border-t border-[#D8E5D4] bg-[#063F2A] text-white">
+      <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.75fr_0.75fr_1fr]">
+          <section className="rounded-[1.75rem] border border-white/10 bg-white/7 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <div className="flex items-center gap-3">
+              <img
+                src="/logo.png"
+                alt="The Harvest Place Ja"
+                className="h-14 w-14 rounded-2xl bg-white object-contain p-1 shadow-sm"
+              />
+
+              <div>
+                <p className="font-serif text-2xl font-black leading-tight tracking-[-0.04em]">
+                  The Harvest Place Ja
+                </p>
+                <p className="mt-1 text-[11px] font-black uppercase tracking-[0.2em] text-[#DFA75A]">
+                  Fresh • Local • Jamaican
+                </p>
+              </div>
             </div>
-          </div>
 
-          <p className="mt-5 max-w-sm text-sm font-semibold leading-7 text-white/85">
-            A clean Jamaican farm store for fresh produce, weekly boxes, safe requests, and Android app ordering.
-          </p>
+            <p className="mt-4 text-sm font-semibold leading-7 text-white/78">
+              Fresh Jamaican produce, weekly boxes, pickup, and selected St. Elizabeth delivery.
+            </p>
 
-          <div className="mt-5 flex gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-full border border-white/35">
-              <span className="text-sm font-black">f</span>
-            </span>
-            <span className="grid h-10 w-10 place-items-center rounded-full border border-white/35">
-              <span className="text-xs font-black">IG</span>
-            </span>
-          </div>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/8 p-4 text-sm font-semibold leading-6 text-white/76">
+              <p className="font-black text-white">Location</p>
+              <p className="mt-1">Meribah District / Malvern P.O., St. Elizabeth, Jamaica.</p>
+              <p className="mt-2">
+                Delivery: Santa Cruz, Junction, Black River, Malvern, Treasure Beach, and nearby areas.
+              </p>
+            </div>
+          </section>
+
+          <FooterColumn
+            title="Shop"
+            links={[
+              ['Shop All', '/shop'],
+              ['Weekly Plans', '/weekly-box'],
+              ['My Box', '/my-box'],
+              ['Orders', '/orders'],
+            ]}
+          />
+
+          <FooterColumn
+            title="Information"
+            links={[
+              ['Support', '/support'],
+              ['Refer & Earn', '/refer-earn'],
+              ['Ingredient Book', '/vegan-ingredient-book'],
+              ['Privacy', '/privacy'],
+              ['Terms', '/terms'],
+              ['Refunds', '/refund'],
+            ]}
+          />
+
+          <section className="rounded-[1.75rem] border border-white/10 bg-white/7 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#DFA75A]">
+              Stay fresh
+            </p>
+
+            <p className="mt-4 text-sm font-semibold leading-7 text-white/78">
+              Get farm updates, new harvests, weekly box reminders, and delivery notices.
+            </p>
+
+            <div className="mt-4 grid gap-2 rounded-2xl border border-white/10 bg-white/8 p-4 text-sm font-semibold text-white/76">
+              <p>
+                Delivery fee: <span className="font-black text-[#FFF3D9]">JMD $1,000</span>
+              </p>
+              <p>
+                Default schedule: <span className="font-black text-white">Friday at 4:00 PM</span>
+              </p>
+            </div>
+
+            <form className="mt-4 flex overflow-hidden rounded-full border border-white/14 bg-white/10 p-1">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                className="min-w-0 flex-1 bg-transparent px-4 text-sm font-bold text-white outline-none placeholder:text-white/50"
+              />
+              <button
+                type="button"
+                className="grid h-11 w-11 place-items-center rounded-full bg-[#DFA75A] text-[#183B28] transition hover:bg-[#FFF3D9]"
+                aria-label="Subscribe"
+              >
+                <Send className="h-5 w-5" />
+              </button>
+            </form>
+          </section>
         </div>
 
-        <FooterColumn
-          title="Shop"
-          links={[
-            ['Shop All', '/shop'],
-            ["This Week's Harvest", '/shop'],
-            ['Harvest Boxes', '/weekly-box'],
-          ]}
-        />
-
-        <FooterColumn
-          title="Account"
-          links={[
-            ['My Requests', '/account'],
-            ['Orders', '/orders'],
-            ['Account', '/account'],
-            [user ? userName : 'Sign in', user ? '/account' : '/auth?redirect=/account'],
-          ]}
-        />
-
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.32em] text-[#DFA75A]">
-            Stay fresh with us
-          </p>
-          <p className="mt-5 text-sm font-semibold leading-7 text-white/85">
-            Get farm updates, new harvests, and exclusive deals.
-          </p>
-
-          <div className="mt-5 flex overflow-hidden rounded-full border border-white/20 bg-white/10 p-1">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="min-w-0 flex-1 bg-transparent px-4 text-sm font-bold text-white outline-none placeholder:text-white/55"
-            />
-            <button
-              type="button"
-              className="grid h-11 w-11 place-items-center rounded-full bg-[#DFA75A] text-[#183B28]"
-              aria-label="Subscribe"
-            >
-              <Send className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-[1500px] flex-col gap-3 px-4 py-5 text-xs font-bold text-white/70 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+        <div className="mt-7 flex flex-col gap-2 border-t border-white/10 pt-5 text-xs font-bold text-white/58 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 The Harvest Place Ja. All rights reserved.</p>
-          <p>Premium farm store MVP • Jamaica 🌿</p>
+          <p>Premium farm store MVP • Jamaica 🇯🇲</p>
         </div>
       </div>
     </footer>
@@ -295,23 +346,23 @@ function FooterColumn({
   links: Array<[string, string]>;
 }) {
   return (
-    <div>
-      <p className="text-xs font-black uppercase tracking-[0.32em] text-[#DFA75A]">
+    <section className="rounded-[1.75rem] border border-white/10 bg-white/7 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#DFA75A]">
         {title}
       </p>
 
-      <div className="mt-5 grid gap-3">
+      <div className="mt-4 grid gap-3">
         {links.map(([label, href]) => (
           <Link
             key={`${title}-${href}-${label}`}
             href={href}
-            className="text-sm font-black text-white transition hover:text-[#DFA75A]"
+            className="inline-flex text-sm font-black text-white/78 transition hover:translate-x-1 hover:text-white"
           >
             {label}
           </Link>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -346,3 +397,5 @@ function firstName(value: string) {
 
 export const EliteShell = SiteShell;
 export default SiteShell;
+
+
